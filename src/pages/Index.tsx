@@ -13,6 +13,7 @@ import { useHousehold } from "@/contexts/HouseholdContext";
 import { Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { SettlementSwitcher } from "@/components/SettlementSwitcher";
 const Index = () => {
   const {
     household,
@@ -42,7 +43,7 @@ const Index = () => {
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl font-display font-bold truncate">Budget App</h1>
                 <p className="text-xs sm:text-sm text-muted-foreground truncate hidden sm:block">
-                  {household?.name || "Laster..."}
+                  <SettlementSwitcher />
                 </p>
               </div>
             </div>

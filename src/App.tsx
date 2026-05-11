@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { HouseholdProvider } from "@/contexts/HouseholdContext";
 import { MonthProvider } from "@/contexts/MonthContext";
+import { SettlementProvider } from "@/contexts/SettlementContext";
 import { RequireAuth } from "@/components/RequireAuth";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import Index from "./pages/Index";
@@ -35,7 +36,9 @@ const App = () => (
                 element={
                   <RequireAuth>
                     <HouseholdProvider>
-                      <Index />
+                      <SettlementProvider>
+                        <Index />
+                      </SettlementProvider>
                     </HouseholdProvider>
                   </RequireAuth>
                 }
@@ -45,12 +48,13 @@ const App = () => (
                 element={
                   <RequireAuth>
                     <HouseholdProvider>
-                      <StoreComparison />
+                      <SettlementProvider>
+                        <StoreComparison />
+                      </SettlementProvider>
                     </HouseholdProvider>
                   </RequireAuth>
                 }
               />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </MonthProvider>

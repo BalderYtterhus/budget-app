@@ -10,6 +10,7 @@ import { ParsedReceipt } from "@/types/budget";
 import { useSaveReceipt, useCategories, useItemMappings } from "@/hooks/useBudgetData";
 import { useShoppingList, useRemoveMatchedItems } from "@/hooks/useShoppingList";
 import { useHousehold } from "@/contexts/HouseholdContext";
+import { useSettlementContext } from "@/contexts/SettlementContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
   Select,
@@ -53,6 +54,7 @@ export function ReceiptUpload() {
   const { data: mappings } = useItemMappings();
   const { data: shoppingItems = [] } = useShoppingList();
   const { household, members } = useHousehold();
+  const { activeSettlement } = useSettlementContext();
   const { user } = useAuth();
   const saveReceipt = useSaveReceipt();
   const removeMatchedItems = useRemoveMatchedItems();
@@ -284,6 +286,7 @@ export function ReceiptUpload() {
         imageUrl,
         rawOcrText: parsedData?.rawText || null,
         paidByUser: paidByUser || null,
+        settlementId: activeSettlement?.id || null,
         items: itemsToSave,
       });
 

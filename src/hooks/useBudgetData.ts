@@ -469,6 +469,7 @@ export function useSaveReceipt() {
       imageUrl: string | null;
       rawOcrText: string | null;
       paidByUser: string | null;
+      settlementId: string | null;
       items: { 
         rawText: string; 
         price: number; 
@@ -491,6 +492,7 @@ export function useSaveReceipt() {
           household_id: household.id,
           created_by_user: user?.id || null,
           paid_by_user: paidByUser,
+          settlement_id: settlementId,
         })
         .select()
         .single();

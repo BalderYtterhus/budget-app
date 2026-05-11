@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.1"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -351,9 +351,11 @@ export type Database = {
           household_id: string | null
           id: string
           image_url: string | null
+          label: string | null
           paid_by_user: string | null
           raw_ocr_text: string | null
           receipt_date: string
+          settlement_id: string | null
           store_name: string | null
           total_amount: number
         }
@@ -363,9 +365,11 @@ export type Database = {
           household_id?: string | null
           id?: string
           image_url?: string | null
+          label?: string | null
           paid_by_user?: string | null
           raw_ocr_text?: string | null
           receipt_date?: string
+          settlement_id?: string | null
           store_name?: string | null
           total_amount: number
         }
@@ -375,9 +379,11 @@ export type Database = {
           household_id?: string | null
           id?: string
           image_url?: string | null
+          label?: string | null
           paid_by_user?: string | null
           raw_ocr_text?: string | null
           receipt_date?: string
+          settlement_id?: string | null
           store_name?: string | null
           total_amount?: number
         }
@@ -403,7 +409,76 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
           },
+          {
+            foreignKeyName: "receipts_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "settlements"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      settlement_members: {
+        Row: {
+          created_at: string
+          id: string
+          ratio: number
+          settlement_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          ratio?: number
+          settlement_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          ratio?: number
+          settlement_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlement_members_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settlements: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          status: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          status?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       shopping_list_items: {
         Row: {

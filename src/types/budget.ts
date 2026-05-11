@@ -11,7 +11,7 @@ export interface Budget {
   month: number;
   year: number;
   total_budget: number;
-  household_id: string;
+  household_id: string | null;
   category_budgets?: CategoryBudget[];
 }
 
@@ -20,7 +20,7 @@ export interface CategoryBudget {
   budget_id: string;
   category_id: string;
   amount: number;
-  category?: Category;
+  category?: Category | null;
 }
 
 export interface Receipt {
@@ -31,7 +31,9 @@ export interface Receipt {
   image_url: string | null;
   raw_ocr_text: string | null;
   created_at: string;
-  household_id: string;
+  household_id: string | null;
+  settlement_id: string | null;
+  label: string | null;
   created_by_user: string | null;
   paid_by_user: string | null;
   items?: ReceiptItem[];
@@ -47,7 +49,7 @@ export interface ReceiptItem {
   category_id: string | null;
   needs_review: boolean;
   included_in_totals: boolean;
-  category?: Category;
+  category?: Category | null;
 }
 
 export interface ItemCategoryMapping {
@@ -55,7 +57,7 @@ export interface ItemCategoryMapping {
   item_pattern: string;
   category_id: string;
   frequency: number;
-  household_id: string;
+  household_id: string | null;
 }
 
 export interface SplitRatio {
@@ -69,14 +71,14 @@ export interface SplitRatio {
 
 export interface ShoppingListItem {
   id: string;
-  household_id: string;
+  household_id: string | null;
   name: string;
   quantity: number;
   category_id: string | null;
   added_by_user: string | null;
   created_at: string;
   updated_at: string;
-  category?: Category;
+  category?: Category | null;
   estimated_price?: number;
 }
 

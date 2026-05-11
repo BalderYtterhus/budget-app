@@ -13,6 +13,7 @@ import { useHousehold } from "@/contexts/HouseholdContext";
 import { useMonth } from "@/contexts/MonthContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useSettlementContext } from "@/contexts/SettlementContext";
 
 export function useCategories() {
   const { household } = useHousehold();
@@ -283,14 +284,15 @@ export function useCurrentBudget() {
 export function useMonthlyReceipts() {
   const { household } = useHousehold();
   const { selectedMonth, selectedYear } = useMonth();
+  const { activeSettlement } = useSettlementContext();
 
   const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString().split("T")[0];
   const endDate = new Date(selectedYear, selectedMonth, 0).toISOString().split("T")[0];
 
   return useQuery({
-    queryKey: ["receipts", selectedMonth, selectedYear, household?.id],
+    queryKey: ["receipts", selectedMonth, selectedYear, activeSettlement?.id],
     queryFn: async (): Promise<Receipt[]> => {
-      if (!household) return [];
+      if (!activeSettlement) return [];
       
       const { data, error } = await supabase
         .from("receipts")
@@ -301,14 +303,14 @@ export function useMonthlyReceipts() {
             category:categories (*)
           )
         `)
-        .eq("household_id", household.id)
+        .eq("settlement_id", activeSettlement.id)
         .gte("receipt_date", startDate)
         .lte("receipt_date", endDate)
         .order("receipt_date", { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: !!household,
+    enabled: !!activeSettlement,
   });
 }
 

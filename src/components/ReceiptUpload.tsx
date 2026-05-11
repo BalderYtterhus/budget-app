@@ -90,8 +90,33 @@ export function ReceiptUpload() {
     [mappings, categories]
   );
 
-  const processImage = async (file: File) => {
+  const compressImage = async (file: File): Promise<File> => {
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxSize = 1600;
+        let { width, height } = img;
+        if (width > maxSize || height > maxSize) {
+          if (width > height) { height = Math.round(height * maxSize / width); width = maxSize; }
+          else { width = Math.round(width * maxSize / height); height = maxSize; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          URL.revokeObjectURL(url);
+          resolve(new File([blob!], file.name, { type: "image/jpeg" }));
+        }, "image/jpeg", 0.85);
+      };
+      img.src = url;
+    });
+  };
+
+  const processImage = async (originalFile: File) => {
     setState("uploading");
+    const file = await compressImage(originalFile);
 
     try {
       // Create preview

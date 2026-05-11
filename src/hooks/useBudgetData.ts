@@ -461,6 +461,7 @@ export function useSaveReceipt() {
       imageUrl,
       rawOcrText,
       paidByUser,
+      settlementId,
       items,
     }: {
       storeName: string | null;

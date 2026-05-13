@@ -35,7 +35,7 @@ interface ReviewItem {
   confidence: number;
 }
 
-export function ReceiptUpload() {
+export function ReceiptUpload({ onSuccess }: { onSuccess?: () => void } = {}) {
   const [state, setState] = useState<UploadState>("idle");
   const [dragActive, setDragActive] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -48,6 +48,7 @@ export function ReceiptUpload() {
   );
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [paidByUser, setPaidByUser] = useState<string>("");
+  const [storeChain, setStoreChain] = useState<string | null>(null);
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -167,6 +168,7 @@ export function ReceiptUpload() {
 
       setParsedData(ocrData);
       setStoreName(ocrData.storeName || "");
+      setStoreChain(ocrData.storeChain || null);
       setTotalAmount(ocrData.totalAmount?.toString() || "");
       if (ocrData.date) {
         setReceiptDate(ocrData.date);
@@ -294,6 +296,7 @@ export function ReceiptUpload() {
     setImageUrl(null);
     setReviewItems([]);
     setStoreName("");
+    setStoreChain(null);
     setTotalAmount("");
     setReceiptDate(new Date().toISOString().split("T")[0]);
     if (user) setPaidByUser(user.id);
@@ -315,6 +318,7 @@ export function ReceiptUpload() {
 
       await saveReceipt.mutateAsync({
         storeName: storeName || null,
+        storeChain,
         totalAmount: parseFloat(totalAmount) || 0,
         receiptDate,
         imageUrl,
@@ -339,7 +343,8 @@ export function ReceiptUpload() {
       }
 
       setState("success");
-      
+      onSuccess?.();
+
       // Build success message
       let description = `${formatNOK(parseFloat(totalAmount))} lagt til forbruket ditt.`;
       if (removedItems.length > 0) {

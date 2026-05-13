@@ -3,67 +3,42 @@ import { supabase } from "@/integrations/supabase/client";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { ShoppingListItem } from "@/types/budget";
 
-// Normalize store names for comparison
-export function normalizeStoreName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^\w\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-// Normalize item names for matching
-function normalizeItemName(text: string): string {
+// Normalize for client-side fuzzy matching only
+function normalizeForMatch(text: string): string {
   return text
     .toLowerCase()
+    .replace(/\d+([.,]\d+)?\s*(g|kg|ml|l|cl|dl|pk|stk|liter)\s*/gi, "")
     .replace(/[^\w\s]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-// Calculate similarity between two strings (word overlap)
 function calculateSimilarity(a: string, b: string): number {
-  const wordsA = new Set(normalizeItemName(a).split(" "));
-  const wordsB = new Set(normalizeItemName(b).split(" "));
-  
+  const wordsA = new Set(normalizeForMatch(a).split(" ").filter(Boolean));
+  const wordsB = new Set(normalizeForMatch(b).split(" ").filter(Boolean));
   let matches = 0;
   for (const word of wordsA) {
     if (wordsB.has(word)) matches++;
   }
-  
   const maxLen = Math.max(wordsA.size, wordsB.size);
   return maxLen > 0 ? matches / maxLen : 0;
 }
 
-// Check if two items match
-function itemsMatch(shoppingItem: string, receiptItem: string): boolean {
-  const normShopping = normalizeItemName(shoppingItem);
-  const normReceipt = normalizeItemName(receiptItem);
-  
-  if (normShopping === normReceipt) return true;
-  if (normReceipt.includes(normShopping)) return true;
-  if (calculateSimilarity(normShopping, normReceipt) >= 0.6) return true;
-  
-  const shoppingWords = normShopping.split(" ").filter(w => w.length > 2);
-  for (const word of shoppingWords) {
-    if (normReceipt.includes(word)) return true;
+function itemsMatch(shoppingItem: string, normalizedName: string): boolean {
+  const normShopping = normalizeForMatch(shoppingItem);
+  if (normShopping === normalizedName) return true;
+  if (normalizedName.includes(normShopping)) return true;
+  if (calculateSimilarity(normShopping, normalizedName) >= 0.6) return true;
+  for (const word of normShopping.split(" ").filter(w => w.length > 2)) {
+    if (normalizedName.includes(word)) return true;
   }
-  
   return false;
 }
 
-// Calculate median of an array
-function median(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
 export interface StorePriceData {
-  storeName: string;
+  storeName: string;        // display name (store_chain)
   normalizedName: string;
-  itemPrices: Map<string, number>; // itemId -> median unit price
+  itemPrices: Map<string, number>;
   totalEstimate: number;
   knownItemCount: number;
   unknownItemCount: number;
@@ -76,7 +51,15 @@ export interface StoreComparisonResult {
   hasEnoughData: boolean;
 }
 
-// Hook to get all known stores from receipt history
+interface PriceStatRow {
+  store_chain: string;
+  normalized_name: string;
+  median_unit_price: number;
+  sample_count: number;
+  last_seen: string;
+}
+
+// Returns the distinct store chains seen in the last 90 days
 export function useKnownStores() {
   const { household } = useHousehold();
 
@@ -89,34 +72,23 @@ export function useKnownStores() {
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
       const { data, error } = await supabase
-        .from("receipts")
-        .select("store_name")
+        .from("item_price_stats")
+        .select("store_chain")
         .eq("household_id", household.id)
-        .gte("receipt_date", ninetyDaysAgo.toISOString().split("T")[0])
-        .not("store_name", "is", null);
+        .gte("last_seen", ninetyDaysAgo.toISOString().split("T")[0]);
 
       if (error) throw error;
 
-      // Get unique store names (normalized)
-      const storeMap = new Map<string, string>();
-      for (const receipt of data || []) {
-        if (receipt.store_name) {
-          const normalized = normalizeStoreName(receipt.store_name);
-          // Keep the first (or most common) original name
-          if (!storeMap.has(normalized)) {
-            storeMap.set(normalized, receipt.store_name);
-          }
-        }
-      }
-
-      return Array.from(storeMap.values()).sort();
+      const chains = [...new Set((data || []).map(r => r.store_chain).filter(Boolean))];
+      return chains.sort();
     },
     enabled: !!household,
-    staleTime: 60000,
+    staleTime: 60_000,
   });
 }
 
-// Main hook: compute store price comparison for shopping list
+// Main hook: compute store price comparison for a shopping list
+// Queries the aggregated view — much cheaper than fetching all raw receipt rows
 export function useStoreComparison(shoppingItems: ShoppingListItem[]) {
   const { household } = useHousehold();
 
@@ -130,101 +102,62 @@ export function useStoreComparison(shoppingItems: ShoppingListItem[]) {
       const ninetyDaysAgo = new Date();
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-      // Fetch all receipts with items from the last 90 days
-      const { data: receipts, error } = await supabase
-        .from("receipts")
-        .select(`
-          store_name,
-          items:receipt_items (
-            raw_text,
-            price,
-            quantity,
-            unit_price,
-            included_in_totals
-          )
-        `)
+      const { data, error } = await supabase
+        .from("item_price_stats")
+        .select("store_chain, normalized_name, median_unit_price, sample_count, last_seen")
         .eq("household_id", household.id)
-        .gte("receipt_date", ninetyDaysAgo.toISOString().split("T")[0])
-        .not("store_name", "is", null);
+        .gte("last_seen", ninetyDaysAgo.toISOString().split("T")[0]);
 
       if (error) throw error;
 
-      // Build price database: storeName -> itemPattern -> prices[]
-      const priceDb = new Map<string, Map<string, number[]>>();
+      const rows = (data || []) as PriceStatRow[];
 
-      for (const receipt of receipts || []) {
-        if (!receipt.store_name) continue;
-        
-        const normalizedStore = normalizeStoreName(receipt.store_name);
-        
-        if (!priceDb.has(normalizedStore)) {
-          priceDb.set(normalizedStore, new Map());
-        }
-        const storeItems = priceDb.get(normalizedStore)!;
-
-        for (const item of receipt.items || []) {
-          // Skip excluded items
-          if (item.included_in_totals === false) continue;
-
-          const normalizedItem = normalizeItemName(item.raw_text);
-          const quantity = item.quantity || 1;
-          const unitPrice = item.unit_price ?? (Number(item.price) / quantity);
-
-          if (!storeItems.has(normalizedItem)) {
-            storeItems.set(normalizedItem, []);
-          }
-          storeItems.get(normalizedItem)!.push(unitPrice);
-        }
+      // Group rows by store_chain
+      const byChain = new Map<string, PriceStatRow[]>();
+      for (const row of rows) {
+        if (!byChain.has(row.store_chain)) byChain.set(row.store_chain, []);
+        byChain.get(row.store_chain)!.push(row);
       }
 
-      // Get unique stores with their original names
-      const storeNames = new Map<string, string>();
-      for (const receipt of receipts || []) {
-        if (receipt.store_name) {
-          const normalized = normalizeStoreName(receipt.store_name);
-          if (!storeNames.has(normalized)) {
-            storeNames.set(normalized, receipt.store_name);
-          }
-        }
-      }
-
-      // Calculate estimates for each store
       const storeData: StorePriceData[] = [];
 
-      for (const [normalizedStore, originalName] of storeNames) {
-        const storeItems = priceDb.get(normalizedStore) || new Map();
+      for (const [chain, chainRows] of byChain) {
         const itemPrices = new Map<string, number>();
         let totalEstimate = 0;
         let knownCount = 0;
         let unknownCount = 0;
 
         for (const shoppingItem of shoppingItems) {
-          // Try to find matching receipt items
-          const matchingPrices: number[] = [];
+          // Find the best matching normalized_name for this shopping list item
+          let bestPrice: number | null = null;
+          let bestScore = 0;
 
-          for (const [receiptItem, prices] of storeItems) {
-            if (itemsMatch(shoppingItem.name, receiptItem)) {
-              matchingPrices.push(...prices);
+          for (const row of chainRows) {
+            if (itemsMatch(shoppingItem.name, row.normalized_name)) {
+              const score = calculateSimilarity(shoppingItem.name, row.normalized_name);
+              if (score > bestScore) {
+                bestScore = score;
+                bestPrice = row.median_unit_price;
+              }
             }
           }
 
-          if (matchingPrices.length > 0) {
-            const medianPrice = median(matchingPrices);
-            itemPrices.set(shoppingItem.id, medianPrice);
-            totalEstimate += medianPrice * shoppingItem.quantity;
+          if (bestPrice !== null) {
+            itemPrices.set(shoppingItem.id, bestPrice);
+            totalEstimate += bestPrice * shoppingItem.quantity;
             knownCount++;
           } else {
             unknownCount++;
           }
         }
 
-        const coveragePercent = shoppingItems.length > 0 
-          ? (knownCount / shoppingItems.length) * 100 
+        const coveragePercent = shoppingItems.length > 0
+          ? (knownCount / shoppingItems.length) * 100
           : 0;
 
         storeData.push({
-          storeName: originalName,
-          normalizedName: normalizedStore,
+          storeName: chain,
+          normalizedName: chain,
           itemPrices,
           totalEstimate,
           knownItemCount: knownCount,
@@ -233,36 +166,26 @@ export function useStoreComparison(shoppingItems: ShoppingListItem[]) {
         });
       }
 
-      // Sort by total estimate (cheapest first), but only consider stores with coverage
       const storesWithCoverage = storeData
         .filter(s => s.knownItemCount > 0)
         .sort((a, b) => a.totalEstimate - b.totalEstimate);
 
-      const cheapestStore = storesWithCoverage.length > 0 ? storesWithCoverage[0] : null;
-      
-      // Has enough data if at least one store has >= 50% coverage
-      const hasEnoughData = storesWithCoverage.some(s => s.coveragePercent >= 50);
-
       return {
         stores: storesWithCoverage,
-        cheapestStore,
-        hasEnoughData,
+        cheapestStore: storesWithCoverage[0] ?? null,
+        hasEnoughData: storesWithCoverage.some(s => s.coveragePercent >= 50),
       };
     },
     enabled: !!household && shoppingItems.length > 0,
-    staleTime: 60000,
+    staleTime: 60_000,
   });
 }
 
-// Hook for detailed per-item comparison data
+// Hook for per-item comparison matrix (unchanged shape, consumed by StoreComparison page)
 export function useDetailedStoreComparison(shoppingItems: ShoppingListItem[]) {
   const { data: comparison } = useStoreComparison(shoppingItems);
+  if (!comparison) return null;
 
-  if (!comparison) {
-    return null;
-  }
-
-  // Build a matrix of items x stores
   const itemRows = shoppingItems.map(item => {
     const storePrices: Record<string, number | null> = {};
     let cheapestStore: string | null = null;
@@ -271,18 +194,13 @@ export function useDetailedStoreComparison(shoppingItems: ShoppingListItem[]) {
     for (const store of comparison.stores) {
       const price = store.itemPrices.get(item.id) ?? null;
       storePrices[store.normalizedName] = price;
-
       if (price !== null && price < cheapestPrice) {
         cheapestPrice = price;
         cheapestStore = store.normalizedName;
       }
     }
 
-    return {
-      item,
-      storePrices,
-      cheapestStore,
-    };
+    return { item, storePrices, cheapestStore };
   });
 
   return {

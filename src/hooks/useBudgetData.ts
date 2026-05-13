@@ -524,6 +524,34 @@ export function useSaveReceipt() {
 
         if (itemsError) throw itemsError;
 
+        // Write anonymized price data via Edge Function (consent checked server-side)
+        if (storeChain) {
+          const categoryIds = [...new Set(items.map(i => i.categoryId).filter(Boolean))] as string[];
+          const { data: cats } = categoryIds.length
+            ? await supabase.from("categories").select("id, name").in("id", categoryIds)
+            : { data: [] };
+          const catMap = new Map((cats || []).map(c => [c.id, c.name]));
+
+          const priceRows = items
+            .filter(i => i.normalizedName && i.price > 0 && i.needsReview !== true)
+            .map(i => ({
+              store_chain: storeChain,
+              normalized_name: i.normalizedName!,
+              category_name: i.categoryId ? (catMap.get(i.categoryId) ?? null) : null,
+              price: i.price,
+              unit_price: i.unitPrice ?? null,
+              quantity: i.quantity || 1,
+              receipt_date: receiptDate,
+              confidence: (i as any).confidence ?? null,
+            }));
+
+          if (priceRows.length > 0) {
+            // Best-effort — never block the receipt save if this fails
+            supabase.functions.invoke("submit-price-data", { body: { rows: priceRows } })
+              .catch(() => {});
+          }
+        }
+
         // Auto-learn mappings for items that were categorized (not needing review)
         const categorizedItems = items.filter(item => item.categoryId && !item.needsReview);
         for (const item of categorizedItems) {

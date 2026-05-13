@@ -12,6 +12,7 @@ import { SpendingTrend } from "@/components/SpendingTrend";
 import { CategoryReviewButton } from "@/components/CategoryReview";
 import { SettlementOversikt } from "@/components/SettlementOversikt";
 import { SettlementSwitcher } from "@/components/SettlementSwitcher";
+import { ConsentModal } from "@/components/ConsentModal";
 import {
   Sheet,
   SheetContent,
@@ -164,6 +165,8 @@ const Index = () => {
           </div>
         </div>
       </footer>
+
+      <ConsentModal />
 
       {/* Receipt upload sheet */}
       <Sheet open={uploadOpen} onOpenChange={setUploadOpen}>

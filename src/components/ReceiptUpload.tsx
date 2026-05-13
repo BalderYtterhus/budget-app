@@ -127,19 +127,21 @@ export function ReceiptUpload({ onSuccess }: { onSuccess?: () => void } = {}) {
       reader.onload = (e) => setPreviewUrl(e.target?.result as string);
       reader.readAsDataURL(file);
 
-      // Upload to storage
-      const fileName = `${Date.now()}-${file.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      // Upload to private bucket under household folder with unguessable UUID name
+      const storagePath = `${household!.id}/${crypto.randomUUID()}`;
+      const { error: uploadError } = await supabase.storage
         .from("receipts")
-        .upload(fileName, file);
+        .upload(storagePath, file);
 
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
+      // Generate a 1-year signed URL (bucket is private — no public URL)
+      const { data: signedData, error: signedError } = await supabase.storage
         .from("receipts")
-        .getPublicUrl(fileName);
+        .createSignedUrl(storagePath, 60 * 60 * 24 * 365);
 
-      setImageUrl(urlData.publicUrl);
+      if (signedError) throw signedError;
+      setImageUrl(signedData.signedUrl);
 
       // Convert to base64 for OCR
       setState("parsing");

@@ -19,11 +19,12 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, Users, Home, Settings, Edit2, Save, X, Check, Sun, Moon } from "lucide-react";
+import { LogOut, Users, Home, Settings, Edit2, Save, X, Check, Sun, Moon, Database } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { HouseholdInvite } from "@/components/HouseholdInvite";
 import { useTheme } from "next-themes";
+import { Link } from "react-router-dom";
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
@@ -71,6 +72,12 @@ export function UserMenu() {
             <Settings className="mr-2 h-4 w-4" />
             Husholdningsinnstillinger
           </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link to="/prisdatabase">
+              <Database className="mr-2 h-4 w-4" />
+              Prisdatabase
+            </Link>
+          </DropdownMenuItem>
 
           {members.length > 0 && (
             <>
@@ -116,11 +123,11 @@ export function UserMenu() {
   );
 }
 
-function HouseholdSettingsDialog({ 
-  open, 
-  onOpenChange 
-}: { 
-  open: boolean; 
+function HouseholdSettingsDialog({
+  open,
+  onOpenChange
+}: {
+  open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const { user } = useAuth();
@@ -130,6 +137,27 @@ function HouseholdSettingsDialog({
   const [householdName, setHouseholdName] = useState(household?.name || "");
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [editingMemberName, setEditingMemberName] = useState("");
+  const [priceSharing, setPriceSharing] = useState<boolean | null>(null);
+
+  // Load current consent preference when dialog opens
+  const handleOpen = (isOpen: boolean) => {
+    if (isOpen && user) {
+      supabase
+        .from("profiles")
+        .select("price_sharing_enabled")
+        .eq("user_id", user.id)
+        .single()
+        .then(({ data }) => setPriceSharing(data?.price_sharing_enabled ?? null));
+    }
+    onOpenChange(isOpen);
+  };
+
+  const handleTogglePriceSharing = async (enabled: boolean) => {
+    if (!user) return;
+    await supabase.from("profiles").update({ price_sharing_enabled: enabled }).eq("user_id", user.id);
+    setPriceSharing(enabled);
+    toast({ title: enabled ? "Prisdeling aktivert" : "Prisdeling deaktivert" });
+  };
 
   const handleSaveHouseholdName = async () => {
     if (!household || !householdName.trim()) return;
@@ -195,7 +223,7 @@ function HouseholdSettingsDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpen}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -314,6 +342,41 @@ function HouseholdSettingsDialog({
               ))}
             </div>
           </div>
+
+          {/* Price sharing consent */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium flex items-center gap-1.5">
+              <Database className="h-3.5 w-3.5" />
+              Anonym prisdeling
+            </Label>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+              <div>
+                <p className="text-sm font-medium">
+                  {priceSharing ? "Aktivert" : priceSharing === false ? "Deaktivert" : "Ikke valgt"}
+                </p>
+                <p className="text-xs text-muted-foreground">Del anonyme prisdata</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant={priceSharing === false ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => handleTogglePriceSharing(false)}
+                >
+                  Nei
+                </Button>
+                <Button
+                  size="sm"
+                  variant={priceSharing === true ? "default" : "outline"}
+                  className="h-7 text-xs"
+                  onClick={() => handleTogglePriceSharing(true)}
+                >
+                  Ja
+                </Button>
+              </div>
+            </div>
+          </div>
+
         </div>
       </DialogContent>
     </Dialog>

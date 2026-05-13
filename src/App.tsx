@@ -15,6 +15,7 @@ import Auth from "./pages/Auth";
 import Install from "./pages/Install";
 import JoinHousehold from "./pages/JoinHousehold";
 import StoreComparison from "./pages/StoreComparison";
+import PrisDatabase from "./pages/PrisDatabase";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,14 @@ const App = () => (
                         <StoreComparison />
                       </SettlementProvider>
                     </HouseholdProvider>
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/prisdatabase"
+                element={
+                  <RequireAuth>
+                    <PrisDatabase />
                   </RequireAuth>
                 }
               />

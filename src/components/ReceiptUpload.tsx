@@ -26,11 +26,13 @@ type UploadState = "idle" | "uploading" | "parsing" | "review" | "saving" | "suc
 
 interface ReviewItem {
   rawText: string;
+  normalizedName: string;
   price: number;
   quantity: number;
   unitPrice: number | null;
   categoryId: string | null;
   needsReview: boolean;
+  confidence: number;
 }
 
 export function ReceiptUpload() {
@@ -177,30 +179,36 @@ export function ReceiptUpload() {
 
       // Use AI-categorized items, with client-side fallback for uncategorized
       const itemsWithCategories = (ocrData.items || []).map(
-        (item: { rawText: string; price: number; quantity?: number; unitPrice?: number | null; categoryId?: string | null; needsReview?: boolean }) => {
+        (item: { rawText: string; normalizedName?: string; price: number; quantity?: number; unitPrice?: number | null; categoryId?: string | null; needsReview?: boolean; confidence?: number }) => {
           const quantity = item.quantity || 1;
           const unitPrice = item.unitPrice ?? null;
-          
+          const confidence = item.confidence ?? 0;
+          const normalizedName = item.normalizedName || item.rawText;
+
           // If AI provided category, use it
           if (item.categoryId) {
             return {
               rawText: item.rawText,
+              normalizedName,
               price: item.price,
               quantity,
               unitPrice,
               categoryId: item.categoryId,
               needsReview: item.needsReview || false,
+              confidence,
             };
           }
           // Otherwise, try client-side categorization
           const fallback = findCategoryForItem(item.rawText);
           return {
             rawText: item.rawText,
+            normalizedName,
             price: item.price,
             quantity,
             unitPrice,
             categoryId: fallback.categoryId,
             needsReview: fallback.needsReview,
+            confidence,
           };
         }
       );
@@ -272,7 +280,7 @@ export function ReceiptUpload() {
   const addManualItem = () => {
     setReviewItems((prev) => [
       ...prev,
-      { rawText: "", price: 0, quantity: 1, unitPrice: null, categoryId: null, needsReview: true },
+      { rawText: "", normalizedName: "", price: 0, quantity: 1, unitPrice: null, categoryId: null, needsReview: true, confidence: 0 },
     ]);
   };
 
@@ -297,6 +305,7 @@ export function ReceiptUpload() {
     try {
       const itemsToSave = reviewItems.map((item) => ({
         rawText: item.rawText,
+        normalizedName: item.normalizedName || item.rawText.toLowerCase().trim(),
         price: item.price,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
@@ -579,13 +588,25 @@ export function ReceiptUpload() {
                       item.needsReview && "bg-warning/5 -mx-2 px-2 py-2 rounded"
                     )}
                   >
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 items-center">
                       <Input
                         value={item.rawText}
                         onChange={(e) => updateItemField(index, "rawText", e.target.value)}
                         placeholder="Varenavn"
                         className="flex-1 h-9 text-sm"
                       />
+                      {item.confidence > 0 && (
+                        <span className={cn(
+                          "shrink-0 text-xs px-1.5 py-0.5 rounded font-mono tabular-nums",
+                          item.confidence >= 0.85
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            : item.confidence >= 0.6
+                            ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                        )}>
+                          {Math.round(item.confidence * 100)}%
+                        </span>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"

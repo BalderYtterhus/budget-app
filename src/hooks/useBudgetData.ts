@@ -473,12 +473,13 @@ export function useSaveReceipt() {
       rawOcrText: string | null;
       paidByUser: string | null;
       settlementId: string | null;
-      items: { 
-        rawText: string; 
-        price: number; 
+      items: {
+        rawText: string;
+        normalizedName?: string;
+        price: number;
         quantity?: number;
         unitPrice?: number | null;
-        categoryId: string | null; 
+        categoryId: string | null;
         needsReview?: boolean;
       }[];
     }) => {
@@ -509,6 +510,7 @@ export function useSaveReceipt() {
             items.map((item) => ({
               receipt_id: receipt.id,
               raw_text: item.rawText,
+              normalized_name: item.normalizedName || null,
               price: item.price,
               quantity: item.quantity || 1,
               unit_price: item.unitPrice ?? null,

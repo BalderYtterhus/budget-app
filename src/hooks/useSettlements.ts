@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useHousehold } from "@/contexts/HouseholdContext";
 
 export interface Settlement {
   id: string;
@@ -8,6 +9,7 @@ export interface Settlement {
   type: "household" | "custom";
   status: "active" | "closed";
   created_by: string;
+  household_id: string;
   created_at: string;
 }
 
@@ -18,30 +20,32 @@ export interface SettlementMember {
   ratio: number;
 }
 
-// Hent alle aktive oppgjør brukeren er med i
 export function useSettlements() {
-  const { user } = useAuth();
+  const { household } = useHousehold();
 
   return useQuery({
-    queryKey: ["settlements", user?.id],
+    queryKey: ["settlements", household?.id],
     queryFn: async () => {
+      if (!household) return [];
+
       const { data, error } = await supabase
         .from("settlements")
         .select("*, settlement_members(*)")
+        .eq("household_id", household.id)
         .eq("status", "active")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data as (Settlement & { settlement_members: SettlementMember[] })[];
     },
-    enabled: !!user,
+    enabled: !!household,
   });
 }
 
-// Opprett nytt oppgjør
 export function useCreateSettlement() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { household } = useHousehold();
 
   return useMutation({
     mutationFn: async ({ name, memberIds, ratios }: {
@@ -49,9 +53,16 @@ export function useCreateSettlement() {
       memberIds: string[];
       ratios: Record<string, number>;
     }) => {
+      if (!household) throw new Error("No household");
+
       const { data: settlement, error } = await supabase
         .from("settlements")
-        .insert({ name, type: "custom", created_by: user?.id })
+        .insert({
+          name,
+          type: "custom",
+          created_by: user?.id,
+          household_id: household.id,
+        })
         .select()
         .single();
 
@@ -74,7 +85,6 @@ export function useCreateSettlement() {
   });
 }
 
-// Avslutt oppgjør
 export function useCloseSettlement() {
   const queryClient = useQueryClient();
 

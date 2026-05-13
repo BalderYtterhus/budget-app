@@ -8,6 +8,8 @@ import { MonthSelector } from "@/components/MonthSelector";
 import { UserMenu } from "@/components/UserMenu";
 import { Settlement } from "@/components/Settlement";
 import { ShoppingList } from "@/components/ShoppingList";
+import { SpendingTrend } from "@/components/SpendingTrend";
+import { CategoryReviewButton } from "@/components/CategoryReview";
 import { ShoppingCart, Download } from "lucide-react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { Loader2 } from "lucide-react";
@@ -51,6 +53,7 @@ const Index = () => {
             {/* Actions - Optimized for mobile */}
             <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               <MonthSelector />
+              <CategoryReviewButton />
               <div className="hidden sm:flex items-center gap-1">
                 <ExportData />
               </div>
@@ -67,6 +70,11 @@ const Index = () => {
           {/* Spending Overview Cards */}
           <section className="animate-fade-in">
             <SpendingOverview />
+          </section>
+
+          {/* Monthly trend chart */}
+          <section className="animate-fade-in" style={{ animationDelay: "50ms" }}>
+            <SpendingTrend />
           </section>
 
           {/* Mobile: Single column, Desktop: Two columns */}

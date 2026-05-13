@@ -20,6 +20,7 @@ import { useSettlementContext } from "@/contexts/SettlementContext";
 import { useCreateSettlement, useCloseSettlement } from "@/hooks/useSettlements";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useHousehold } from "@/contexts/HouseholdContext";
 
 export function SettlementSwitcher() {
   const { activeSettlement, setActiveSettlement, settlements } = useSettlementContext();
@@ -27,6 +28,7 @@ export function SettlementSwitcher() {
   const closeSettlement = useCloseSettlement();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { members } = useHousehold();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -35,10 +37,15 @@ export function SettlementSwitcher() {
     if (!newName.trim()) return;
 
     try {
+      // Include all household members in the settlement
+      const memberIds = members.length > 0 ? members.map(m => m.user_id) : [user!.id];
+      const equalRatio = 100 / memberIds.length;
+      const ratios = Object.fromEntries(memberIds.map(id => [id, equalRatio]));
+
       const settlement = await createSettlement.mutateAsync({
         name: newName.trim(),
-        memberIds: [user!.id],
-        ratios: { [user!.id]: 100 },
+        memberIds,
+        ratios,
       });
       setActiveSettlement(settlement);
       setIsCreateOpen(false);

@@ -6,6 +6,21 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function normalizeItemName(raw: string): string {
+  return raw
+    .toLowerCase()
+    // Remove quantity prefixes like "2x", "3 pk"
+    .replace(/^\d+\s*[xX×]\s*/, "")
+    // Remove weights/measures
+    .replace(/\b\d+([.,]\d+)?\s*(g|kg|ml|l|cl|dl|pk|stk|liter)\b/gi, "")
+    // Remove store codes / price info
+    .replace(/\b[A-Z]{2,}\d+\b/g, "")
+    // Strip punctuation
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -48,38 +63,43 @@ serve(async (req) => {
 
     const categoryList = categories.map((c) => `- "${c.name}" (ID: ${c.id})`).join("\n");
     const learnedMappingsInfo = mappings.length > 0
-      ? `\nLearned mappings:\n${mappings.slice(0, 50).map((m) => `- "${m.item_pattern}" → ${m.category_id}`).join("\n")}`
+      ? `\nLearned mappings (prioritize these):\n${mappings.slice(0, 50).map((m) => `- "${m.item_pattern}" → ${m.category_id}`).join("\n")}`
       : "";
 
-    const prompt = `You are a receipt OCR expert. Analyze this grocery receipt and extract structured data.
+    const prompt = `Du er en ekspert på å lese norske dagligvarekvitteringer. Analyser kvitteringsbildet og ekstraher strukturerte data.
 
-AVAILABLE CATEGORIES:
-${categoryList || "No categories — leave categoryId as null"}
+TILGJENGELIGE KATEGORIER:
+${categoryList || "Ingen kategorier — sett categoryId til null"}
 ${learnedMappingsInfo}
 
-Return ONLY valid JSON, no markdown:
+Returner KUN gyldig JSON uten markdown-blokker:
 {
-  "storeName": "Store name or null",
+  "storeName": "Butikknavn eller null",
   "totalAmount": 0.00,
-  "date": "YYYY-MM-DD or null",
+  "date": "ÅÅÅÅ-MM-DD eller null",
   "items": [
     {
-      "rawText": "Item description exactly as shown",
+      "rawText": "Varetekst nøyaktig slik den står på kvitteringen",
+      "normalizedName": "normalisert produktnavn",
       "price": 0.00,
       "quantity": 1,
       "unitPrice": null,
-      "categoryId": "UUID or null",
+      "categoryId": "UUID eller null",
       "confidence": 0.95
     }
   ]
 }
 
-RULES:
-- totalAmount: look for TOTAL, SUM, Å BETALE, TOTALT — must be exact number from receipt
-- Each item price is the line total
-- If text is unclear, use null rather than guessing
-- confidence: 0.0-1.0, how certain you are about the category
-- Return ONLY valid JSON`;
+REGLER:
+- totalAmount: finn TOTAL, SUM, Å BETALE, TOTALT — bruk nøyaktig beløp fra kvitteringen
+- rawText: vareteksten nøyaktig slik den vises, inkludert forkortelser
+- normalizedName: generisk, liten bokstav, ingen mengder/vekter (g/kg/ml/l/pk/stk), ingen butikkspesifikke koder. Eksempler: "Tine Helmelk 1L" → "helmelk", "Kjøttdeig 400g" → "kjøttdeig", "2pk Egg L" → "egg", "Prior Kyllingfilet 600g" → "kyllingfilet"
+- price: linjens totalpris (quantity × unitPrice)
+- quantity: antall enheter, standard 1
+- unitPrice: pris per enhet, eller null hvis quantity er 1
+- categoryId: bruk lærte mappinger og kategorilisten — velg best match
+- confidence: 0.0–1.0, hvor sikker du er på kategorien
+- Returner KUN gyldig JSON`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -89,7 +109,7 @@ RULES:
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
+        model: "claude-haiku-4-5-20251001",
         max_tokens: 4000,
         messages: [{
           role: "user",
@@ -117,7 +137,6 @@ RULES:
     const aiResponse = await response.json();
     const content = aiResponse.content?.find((b: { type: string }) => b.type === "text")?.text;
     if (!content) throw new Error("No content in Anthropic response");
-    console.log("Anthropic response:", JSON.stringify(aiResponse));
 
     let parsed;
     try {
@@ -137,8 +156,13 @@ RULES:
           const unitPrice = item.unitPrice ? parseFloat(item.unitPrice) : quantity > 1 ? price / quantity : null;
           const confidence = Math.min(1, Math.max(0, parseFloat(item.confidence) || 0));
 
+          // Sanitize normalizedName from AI, then apply our own cleanup as fallback
+          const rawNormalized = String(item.normalizedName || item.rawText || "ukjent vare");
+          const normalizedName = normalizeItemName(rawNormalized) || normalizeItemName(String(item.rawText || "ukjent vare"));
+
           return {
             rawText: String(item.rawText || "Ukjent vare"),
+            normalizedName,
             price,
             quantity,
             unitPrice,

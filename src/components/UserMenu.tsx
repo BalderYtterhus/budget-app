@@ -19,15 +19,17 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, Users, Home, Settings, Edit2, Save, X, Check } from "lucide-react";
+import { LogOut, Users, Home, Settings, Edit2, Save, X, Check, Sun, Moon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { HouseholdInvite } from "@/components/HouseholdInvite";
+import { useTheme } from "next-themes";
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
   const { household, members } = useHousehold();
   const [showHouseholdSettings, setShowHouseholdSettings] = useState(false);
+  const { theme, setTheme } = useTheme();
 
   if (!user) return null;
 
@@ -88,6 +90,15 @@ export function UserMenu() {
             </>
           )}
 
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+            {theme === "dark" ? (
+              <Sun className="mr-2 h-4 w-4" />
+            ) : (
+              <Moon className="mr-2 h-4 w-4" />
+            )}
+            {theme === "dark" ? "Lyst tema" : "Mørkt tema"}
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={signOut} className="text-destructive">
             <LogOut className="mr-2 h-4 w-4" />

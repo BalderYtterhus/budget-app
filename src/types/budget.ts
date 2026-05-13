@@ -43,12 +43,14 @@ export interface ReceiptItem {
   id: string;
   receipt_id: string;
   raw_text: string;
+  normalized_name: string | null;
   price: number;
   quantity: number;
   unit_price: number | null;
   category_id: string | null;
   needs_review: boolean;
   included_in_totals: boolean;
+  confidence: number | null;
   category?: Category | null;
 }
 
@@ -106,11 +108,13 @@ export interface ParsedReceipt {
   date: string | null;
   items: Array<{
     rawText: string;
+    normalizedName: string;
     price: number;
     quantity: number;
     unitPrice: number | null;
     categoryId: string | null;
     needsReview: boolean;
+    confidence: number;
   }>;
   rawText: string;
 }

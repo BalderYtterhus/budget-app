@@ -1,0 +1,35 @@
+{
+  "name": "BudgetBandz",
+  "short_name": "BudgetBandz",
+  "description": "Spor matforbruket ditt med AI-kvitteringsscanning",
+  "theme_color": "#1e293b",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "start_url": "/",
+  "scope": "/",
+  "lang": "nb",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "food"],
+  "shortcuts": [
+    {
+      "name": "Legg til kvittering",
+      "short_name": "Kvittering",
+      "description": "Scan en ny kvittering",
+      "url": "/?action=scan"
+    },
+    {
+      "name": "Handleliste",
+      "short_name": "Handleliste",
+      "description": "Åpne handlelisten",
+      "url": "/?action=shopping"
+    }
+  ]
+}

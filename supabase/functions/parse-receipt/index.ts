@@ -6,6 +6,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Ordered longest-first so "coop extra" matches before "coop"
+const STORE_CHAINS = [
+  "rema 1000", "coop extra", "coop prix", "coop mega", "coop marked",
+  "obs bygg", "eurospar", "bunnpris", "nærbutikken", "mathallen",
+  "kiwi", "meny", "spar", "joker", "extra", "obs", "oda", "prix",
+];
+
+function extractStoreChain(storeName: string | null): string | null {
+  if (!storeName) return null;
+  const lower = storeName.toLowerCase().trim();
+  for (const chain of STORE_CHAINS) {
+    if (lower === chain || lower.startsWith(chain + " ")) return chain;
+  }
+  // Fallback: first word, stripped of non-alphanumeric
+  return lower.split(/\s+/)[0].replace(/[^\w]/g, "") || null;
+}
+
 function normalizeItemName(raw: string): string {
   return raw
     .toLowerCase()
@@ -144,8 +161,10 @@ REGLER:
       const jsonData = JSON.parse(cleanContent);
       const validCategoryIds = new Set(categories.map((c) => c.id));
 
+      const parsedStoreName = jsonData.storeName || null;
       parsed = {
-        storeName: jsonData.storeName || null,
+        storeName: parsedStoreName,
+        storeChain: extractStoreChain(parsedStoreName),
         totalAmount: parseFloat(jsonData.totalAmount) || 0,
         date: jsonData.date || null,
         items: (jsonData.items || []).map((item: any) => {
@@ -153,7 +172,24 @@ REGLER:
             ? item.categoryId : null;
           const quantity = parseInt(item.quantity) || 1;
           const price = parseFloat(item.price) || 0;
-          const unitPrice = item.unitPrice ? parseFloat(item.unitPrice) : quantity > 1 ? price / quantity : null;
+          let unitPrice: number | null = item.unitPrice ? parseFloat(item.unitPrice) : null;
+
+          // Validate unit price: if quantity > 1 and unitPrice is provided, check consistency
+          if (quantity > 1) {
+            if (unitPrice !== null) {
+              const expected = price / quantity;
+              // Accept if within 5% tolerance; otherwise recalculate
+              if (Math.abs(unitPrice * quantity - price) > 0.05 * price + 0.01) {
+                unitPrice = expected;
+              }
+            } else {
+              unitPrice = price / quantity;
+            }
+          } else {
+            // quantity === 1: unitPrice should equal price or be null
+            unitPrice = null;
+          }
+
           const confidence = Math.min(1, Math.max(0, parseFloat(item.confidence) || 0));
 
           // Sanitize normalizedName from AI, then apply our own cleanup as fallback
@@ -174,7 +210,7 @@ REGLER:
         rawText: content,
       };
     } catch {
-      parsed = { storeName: null, totalAmount: 0, date: null, items: [], rawText: content };
+      parsed = { storeName: null, storeChain: null, totalAmount: 0, date: null, items: [], rawText: content };
     }
 
     return new Response(JSON.stringify(parsed), {

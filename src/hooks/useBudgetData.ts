@@ -458,6 +458,7 @@ export function useSaveReceipt() {
   return useMutation({
     mutationFn: async ({
       storeName,
+      storeChain,
       totalAmount,
       receiptDate,
       imageUrl,
@@ -467,6 +468,7 @@ export function useSaveReceipt() {
       items,
     }: {
       storeName: string | null;
+      storeChain: string | null;
       totalAmount: number;
       receiptDate: string;
       imageUrl: string | null;
@@ -489,6 +491,7 @@ export function useSaveReceipt() {
         .from("receipts")
         .insert({
           store_name: storeName,
+          store_chain: storeChain,
           total_amount: totalAmount,
           receipt_date: receiptDate,
           image_url: imageUrl,

@@ -450,6 +450,40 @@ export function useSaveBudget() {
   });
 }
 
+// Longest-match first — mirrors the SQL backfill in migration 20260514000001
+const KNOWN_CHAINS: [string, string][] = [
+  ["rema 1000", "rema 1000"],
+  ["coop extra", "coop extra"],
+  ["coop prix", "coop prix"],
+  ["coop mega", "coop mega"],
+  ["coop marked", "coop marked"],
+  ["obs bygg", "obs bygg"],
+  ["eurospar", "eurospar"],
+  ["bunnpris", "bunnpris"],
+  ["kiwi", "kiwi"],
+  ["meny", "meny"],
+  ["spar", "spar"],
+  ["joker", "joker"],
+  ["extra", "extra"],
+  ["obs", "obs"],
+  ["oda", "oda"],
+  ["prix", "prix"],
+  ["coop", "coop"],
+  ["lidl", "lidl"],
+  ["aldi", "aldi"],
+];
+
+function deriveStoreChain(storeName: string | null): string | null {
+  if (!storeName) return null;
+  const lower = storeName.toLowerCase().trim();
+  for (const [prefix, chain] of KNOWN_CHAINS) {
+    if (lower === prefix || lower.startsWith(prefix + " ")) return chain;
+  }
+  // Fallback: first word of store name
+  const first = lower.split(" ")[0];
+  return first || null;
+}
+
 export function useSaveReceipt() {
   const queryClient = useQueryClient();
   const { household } = useHousehold();
@@ -489,11 +523,13 @@ export function useSaveReceipt() {
     }) => {
       if (!household) throw new Error("No household selected");
 
+      const resolvedChain = storeChain ?? deriveStoreChain(storeName);
+
       const { data: receipt, error: receiptError } = await supabase
         .from("receipts")
         .insert({
           store_name: storeName,
-          store_chain: storeChain,
+          store_chain: resolvedChain,
           total_amount: totalAmount,
           receipt_date: receiptDate,
           image_url: imageUrl,
@@ -528,7 +564,7 @@ export function useSaveReceipt() {
         if (itemsError) throw itemsError;
 
         // Write anonymized price data via Edge Function (consent checked server-side)
-        if (storeChain) {
+        if (resolvedChain) {
           const categoryIds = [...new Set(items.map(i => i.categoryId).filter(Boolean))] as string[];
           const { data: cats } = categoryIds.length
             ? await supabase.from("categories").select("id, name").in("id", categoryIds)
@@ -538,7 +574,7 @@ export function useSaveReceipt() {
           const priceRows = items
             .filter(i => i.normalizedName && i.price > 0 && i.needsReview !== true)
             .map(i => ({
-              store_chain: storeChain,
+              store_chain: resolvedChain,
               normalized_name: i.normalizedName!,
               category_name: i.categoryId ? (catMap.get(i.categoryId) ?? null) : null,
               price: i.price,

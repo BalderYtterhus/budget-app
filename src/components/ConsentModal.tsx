@@ -10,9 +10,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck, BarChart2, EyeOff } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 export function ConsentModal() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -32,11 +34,15 @@ export function ConsentModal() {
   const handleChoice = async (enabled: boolean) => {
     if (!user) return;
     setSaving(true);
-    await supabase
+    const { error } = await supabase
       .from("profiles")
       .update({ price_sharing_enabled: enabled })
       .eq("user_id", user.id);
     setSaving(false);
+    if (error) {
+      toast({ title: "Kunne ikke lagre valget. Prøv igjen.", variant: "destructive" });
+      return;
+    }
     setOpen(false);
   };
 

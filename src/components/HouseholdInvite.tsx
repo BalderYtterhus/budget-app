@@ -13,7 +13,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Copy, RefreshCw, Link, Check, UserPlus } from "lucide-react";
+import { Copy, RefreshCw, Link, Check, UserPlus, Clock, X } from "lucide-react";
+import { format, isPast } from "date-fns";
+import { nb } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 
 interface HouseholdInviteProps {
@@ -28,6 +30,10 @@ export function HouseholdInvite({ inviteToken, inviteEnabled, onUpdate }: Househ
   const [copied, setCopied] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isUpdatingEnabled, setIsUpdatingEnabled] = useState(false);
+  const [isSettingExpiry, setIsSettingExpiry] = useState(false);
+
+  const inviteExpiresAt = household?.invite_expires_at ?? null;
+  const isExpired = inviteExpiresAt ? isPast(new Date(inviteExpiresAt)) : false;
 
   const inviteUrl = inviteToken 
     ? `${window.location.origin}/join?token=${inviteToken}`
@@ -64,6 +70,28 @@ export function HouseholdInvite({ inviteToken, inviteEnabled, onUpdate }: Househ
       toast({ title: "Kunne ikke generere ny lenke", variant: "destructive" });
     } finally {
       setIsRegenerating(false);
+    }
+  };
+
+  const setExpiry = async (days: number | null) => {
+    if (!household) return;
+    setIsSettingExpiry(true);
+    try {
+      if (days === null) {
+        const { error } = await supabase.rpc("clear_invite_expiry", { _household_id: household.id });
+        if (error) throw error;
+        toast({ title: "Utløpsdato fjernet" });
+      } else {
+        const { error } = await supabase.rpc("set_invite_expiry", { _household_id: household.id, _days: days });
+        if (error) throw error;
+        toast({ title: `Invitasjonen utløper om ${days} dager` });
+      }
+      onUpdate();
+    } catch (error) {
+      console.error("Error setting expiry:", error);
+      toast({ title: "Kunne ikke oppdatere utløpsdato", variant: "destructive" });
+    } finally {
+      setIsSettingExpiry(false);
     }
   };
 
@@ -158,6 +186,48 @@ export function HouseholdInvite({ inviteToken, inviteEnabled, onUpdate }: Househ
                 <RefreshCw className={`h-4 w-4 ${isRegenerating ? "animate-spin" : ""}`} />
                 Generer ny lenke (ugyldiggjør gammel)
               </Button>
+
+              {/* Expiry */}
+              <div className="space-y-2 pt-1 border-t">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                    {inviteExpiresAt ? (
+                      <span className={isExpired ? "text-destructive" : "text-muted-foreground"}>
+                        {isExpired ? "Utløpt" : "Utløper"}{" "}
+                        {format(new Date(inviteExpiresAt), "d. MMM yyyy", { locale: nb })}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Ingen utløpsdato</span>
+                    )}
+                  </div>
+                  {inviteExpiresAt && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => setExpiry(null)}
+                      disabled={isSettingExpiry}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {[7, 14, 30].map(days => (
+                    <Button
+                      key={days}
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-xs h-7"
+                      onClick={() => setExpiry(days)}
+                      disabled={isSettingExpiry}
+                    >
+                      {days}d
+                    </Button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 

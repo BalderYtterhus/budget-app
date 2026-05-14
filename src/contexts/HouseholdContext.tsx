@@ -7,6 +7,7 @@ interface Household {
   name: string;
   invite_token: string | null;
   invite_enabled: boolean;
+  invite_expires_at: string | null;
 }
 
 interface HouseholdMember {
@@ -62,7 +63,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       // Get household details including invite info
       const { data: householdData, error: householdError } = await supabase
         .from("households")
-        .select("id, name, invite_token, invite_enabled")
+        .select("id, name, invite_token, invite_enabled, invite_expires_at")
         .eq("id", membership.household_id)
         .single();
 

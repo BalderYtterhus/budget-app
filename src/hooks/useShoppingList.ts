@@ -316,3 +316,20 @@ export function useEstimatePrices(shoppingItems: ShoppingListItem[]) {
     staleTime: 60000, // Cache for 1 minute
   });
 }
+
+export function useClearShoppingList() {
+  const queryClient = useQueryClient();
+  const { household } = useHousehold();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!household) throw new Error("No household");
+      const { error } = await supabase
+        .from("shopping_list_items")
+        .delete()
+        .eq("household_id", household.id);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["shopping-list"] }),
+  });
+}

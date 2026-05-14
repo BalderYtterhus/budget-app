@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Home, CheckCircle, XCircle, LogIn } from "lucide-react";
+import { Loader2, Home, CheckCircle, XCircle, LogIn, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const JoinHousehold = () => {
@@ -13,7 +13,7 @@ const JoinHousehold = () => {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
-  const [status, setStatus] = useState<"loading" | "success" | "already_member" | "error" | "need_auth">("loading");
+  const [status, setStatus] = useState<"loading" | "success" | "already_member" | "error" | "expired" | "need_auth">("loading");
   const [householdName, setHouseholdName] = useState<string>("");
   const [errorMessage, setErrorMessage] = useState<string>("");
 
@@ -49,8 +49,12 @@ const JoinHousehold = () => {
       const result = data as { success: boolean; already_member?: boolean; household_name?: string; error?: string };
 
       if (!result.success) {
-        setStatus("error");
-        setErrorMessage(result.error || "Kunne ikke bli med i husholdningen");
+        if (result.error?.includes("utløpt")) {
+          setStatus("expired");
+        } else {
+          setStatus("error");
+          setErrorMessage(result.error || "Kunne ikke bli med i husholdningen");
+        }
         return;
       }
 
@@ -146,6 +150,24 @@ const JoinHousehold = () => {
               </div>
               <Button onClick={handleGoToDashboard} className="w-full">
                 Gå til budsjettet
+              </Button>
+            </div>
+          )}
+
+          {status === "expired" && (
+            <div className="flex flex-col items-center gap-4 py-6">
+              <Clock className="h-12 w-12 text-warning" />
+              <div className="text-center space-y-1">
+                <p className="font-medium text-lg">Lenken har utløpt</p>
+                <p className="text-muted-foreground text-sm">
+                  Invitasjonslenken er ikke lenger gyldig. Be eieren av husholdningen om å sende en ny lenke.
+                </p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Eieren kan sette en ny utløpsdato i Innstillinger → Inviter medlemmer.
+                </p>
+              </div>
+              <Button variant="outline" onClick={() => navigate("/")} className="w-full">
+                Gå til forsiden
               </Button>
             </div>
           )}

@@ -17,7 +17,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSettlementContext } from "@/contexts/SettlementContext";
-import { useCreateSettlement, useCloseSettlement } from "@/hooks/useSettlements";
+import { useCreateSettlement, useCloseSettlement, useReopenSettlement, useClosedSettlements } from "@/hooks/useSettlements";
+import { RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
@@ -26,6 +27,8 @@ export function SettlementSwitcher() {
   const { activeSettlement, setActiveSettlement, settlements } = useSettlementContext();
   const createSettlement = useCreateSettlement();
   const closeSettlement = useCloseSettlement();
+  const reopenSettlement = useReopenSettlement();
+  const { data: closedSettlements } = useClosedSettlements();
   const { toast } = useToast();
   const { user } = useAuth();
   const { members } = useHousehold();
@@ -102,6 +105,26 @@ export function SettlementSwitcher() {
           ))}
 
           {settlements.length > 0 && <DropdownMenuSeparator />}
+
+          {closedSettlements && closedSettlements.length > 0 && (
+            <>
+              {closedSettlements.map(s => (
+                <DropdownMenuItem
+                  key={s.id}
+                  className="flex items-center justify-between gap-2 cursor-pointer text-muted-foreground"
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    await reopenSettlement.mutateAsync(s.id);
+                    toast({ title: `«${s.name}» gjenåpnet` });
+                  }}
+                >
+                  <span className="truncate text-xs">{s.name}</span>
+                  <RotateCcw className="h-3 w-3 shrink-0" />
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenuSeparator />
+            </>
+          )}
 
           <DropdownMenuItem
             className="cursor-pointer text-primary"

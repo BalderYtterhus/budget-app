@@ -3,6 +3,7 @@ import { BudgetProgress } from "./BudgetProgress";
 import { useSpendingSummary } from "@/hooks/useBudgetData";
 import { PieChart } from "lucide-react";
 import { formatNOK } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 const colorClassMap: Record<string, string> = {
   dairy: "bg-category-dairy",
@@ -53,13 +54,23 @@ export function CategoryBreakdown() {
           </p>
         ) : (
           categoriesWithSpending.map((cs) => (
-            <BudgetProgress
-              key={cs.category.id}
-              label={cs.category.name}
-              spent={cs.spent}
-              budget={cs.budget > 0 ? cs.budget : cs.spent}
-              colorClass={colorClassMap[cs.category.color] || colorClassMap.other}
-            />
+            cs.budget > 0 ? (
+              <BudgetProgress
+                key={cs.category.id}
+                label={cs.category.name}
+                spent={cs.spent}
+                budget={cs.budget}
+                colorClass={colorClassMap[cs.category.color] || colorClassMap.other}
+              />
+            ) : (
+              <div key={cs.category.id} className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <div className={cn("h-2.5 w-2.5 rounded-full shrink-0", colorClassMap[cs.category.color] || colorClassMap.other)} />
+                  <span className="font-medium">{cs.category.name}</span>
+                </div>
+                <span className="tabular-nums text-muted-foreground">{formatNOK(cs.spent)}</span>
+              </div>
+            )
           ))
         )}
       </CardContent>

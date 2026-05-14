@@ -803,7 +803,7 @@ export function useUpdateReceipt() {
       updates,
     }: {
       receiptId: string;
-      updates: { store_name?: string; receipt_date?: string; total_amount?: number; label?: string | null };
+      updates: { store_name?: string; store_chain?: string | null; receipt_date?: string; total_amount?: number; label?: string | null };
     }) => {
       const { error } = await supabase
         .from("receipts")
@@ -927,21 +927,43 @@ export function useLeaveHousehold() {
 
 export function useRemoveMember() {
   const queryClient = useQueryClient();
-  const { household } = useHousehold();
+  const { household, members } = useHousehold();
   const { toast } = useToast();
 
   return useMutation({
     mutationFn: async (userId: string) => {
       if (!household) throw new Error("No household");
+
       const { error } = await supabase
         .from("household_memberships")
         .delete()
         .eq("household_id", household.id)
         .eq("user_id", userId);
       if (error) throw error;
+
+      // Rebalance split ratios equally among remaining members
+      const remaining = members.filter(m => m.user_id !== userId);
+      if (remaining.length > 0) {
+        const equalRatio = 100 / remaining.length;
+        await supabase.from("split_ratios").upsert(
+          remaining.map(m => ({
+            household_id: household.id,
+            user_id: m.user_id,
+            ratio: equalRatio,
+          })),
+          { onConflict: "household_id,user_id" }
+        );
+        // Remove ratio entry for the removed member
+        await supabase
+          .from("split_ratios")
+          .delete()
+          .eq("household_id", household.id)
+          .eq("user_id", userId);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["household"] });
+      queryClient.invalidateQueries({ queryKey: ["split-ratios"] });
       toast({ title: "Medlem fjernet" });
     },
     onError: () => {

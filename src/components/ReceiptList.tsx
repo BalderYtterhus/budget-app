@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Receipt, ScrollText, Trash2, ChevronRight, Store, User, AlertTriangle, AlertCircle, Ban, Pencil, Check, Tag } from "lucide-react";
+import { Receipt, ScrollText, Trash2, ChevronRight, Store, User, AlertTriangle, AlertCircle, Ban, Pencil, Check, Tag, Search, X, ZoomIn } from "lucide-react";
 import { useMonthlyReceipts, useDeleteReceipt, useCategories, useUpdateReceiptPayer, useUpdateReceipt } from "@/hooks/useBudgetData";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { Receipt as ReceiptType } from "@/types/budget";
@@ -36,6 +36,7 @@ import { nb } from "date-fns/locale";
 import { formatNOK } from "@/lib/format";
 import { Label } from "@/components/ui/label";
 import { ReceiptItemEditor } from "@/components/ReceiptItemEditor";
+import { ReceiptImage } from "@/components/ReceiptImage";
 
 export function ReceiptList() {
   const { data: receipts, isLoading } = useMonthlyReceipts();
@@ -50,6 +51,9 @@ export function ReceiptList() {
   const [editDate, setEditDate] = useState("");
   const [editTotal, setEditTotal] = useState("");
   const [editLabel, setEditLabel] = useState("");
+  const [editStoreChain, setEditStoreChain] = useState("");
+  const [search, setSearch] = useState("");
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   // Find the current receipt from the data (for real-time updates)
   const currentReceipt = useMemo(() => {
@@ -70,12 +74,26 @@ export function ReceiptList() {
     return currentReceipt.items.filter(item => item.included_in_totals === false).length;
   }, [currentReceipt?.items]);
 
+  const filteredReceipts = useMemo(() => {
+    if (!receipts) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return receipts;
+    return receipts.filter(r => {
+      const label = (r as unknown as { label?: string }).label?.toLowerCase() ?? "";
+      return (
+        (r.store_name?.toLowerCase().includes(q)) ||
+        label.includes(q)
+      );
+    });
+  }, [receipts, search]);
+
   const handlePayerChange = async (receiptId: string, paidByUser: string) => {
     await updateReceiptPayer.mutateAsync({ receiptId, paidByUser });
   };
 
   const startEdit = (receipt: ReceiptType) => {
     setEditStoreName(receipt.store_name || "");
+    setEditStoreChain(receipt.store_chain || "");
     setEditDate(receipt.receipt_date?.split("T")[0] || "");
     setEditTotal(String(Number(receipt.total_amount)));
     setEditLabel((receipt as unknown as { label?: string }).label || "");
@@ -89,6 +107,7 @@ export function ReceiptList() {
       receiptId: currentReceipt.id,
       updates: {
         store_name: editStoreName || undefined,
+        store_chain: editStoreChain.trim().toLowerCase() || null,
         receipt_date: editDate || undefined,
         total_amount: isNaN(total) ? undefined : total,
         label: editLabel.trim() || null,
@@ -124,9 +143,30 @@ export function ReceiptList() {
   return (
     <>
       <Card className="shadow-card">
-        <CardHeader className="flex flex-row items-center justify-between px-4 sm:px-6 pt-4 sm:pt-6 pb-4">
-          <CardTitle className="text-base sm:text-lg font-display">Kvitteringer</CardTitle>
-          <ScrollText className="h-5 w-5 text-muted-foreground" />
+        <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base sm:text-lg font-display">Kvitteringer</CardTitle>
+            <ScrollText className="h-5 w-5 text-muted-foreground" />
+          </div>
+          {receipts && receipts.length > 3 && (
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Søk butikk eller etikett…"
+                className="pl-8 pr-8 h-8 text-sm"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          )}
         </CardHeader>
         <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
           {!receipts || receipts.length === 0 ? (
@@ -136,9 +176,13 @@ export function ReceiptList() {
                 Ingen kvitteringer denne måneden
               </p>
             </div>
+          ) : filteredReceipts.length === 0 ? (
+            <div className="text-center py-6">
+              <p className="text-sm text-muted-foreground">Ingen treff på «{search}»</p>
+            </div>
           ) : (
             <div className="space-y-2">
-              {receipts.map((receipt) => (
+              {filteredReceipts.map((receipt) => (
                 <div
                   key={receipt.id}
                   className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 active:bg-accent transition-colors cursor-pointer group min-h-[56px]"
@@ -267,21 +311,50 @@ export function ReceiptList() {
                   </div>
                 )}
                 {editMode ? (
-                  <div className="flex items-center gap-2 mt-1">
-                    <Tag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <Input
-                      value={editLabel}
-                      onChange={e => setEditLabel(e.target.value)}
-                      className="h-7 text-sm"
-                      placeholder="Etikett (valgfri)"
-                    />
+                  <div className="space-y-1.5 mt-1">
+                    <div className="flex items-center gap-2">
+                      <Store className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <Input
+                        value={editStoreChain}
+                        onChange={e => setEditStoreChain(e.target.value)}
+                        className="h-7 text-sm"
+                        placeholder="Kjede (f.eks. rema 1000, kiwi)"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Tag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <Input
+                        value={editLabel}
+                        onChange={e => setEditLabel(e.target.value)}
+                        className="h-7 text-sm"
+                        placeholder="Etikett (valgfri)"
+                      />
+                    </div>
                   </div>
-                ) : (currentReceipt as unknown as { label?: string }).label ? (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
-                    <Tag className="h-3 w-3" />
-                    <span>{(currentReceipt as unknown as { label?: string }).label}</span>
+                ) : (
+                  <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    {currentReceipt.store_chain ? (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Store className="h-3 w-3" />
+                        <span>{currentReceipt.store_chain}</span>
+                      </div>
+                    ) : (
+                      <button
+                        className="flex items-center gap-1.5 text-xs text-warning hover:text-warning/80 transition-colors"
+                        onClick={() => currentReceipt && startEdit(currentReceipt)}
+                      >
+                        <Store className="h-3 w-3" />
+                        <span>Sett kjede for prisdeling</span>
+                      </button>
+                    )}
+                    {(currentReceipt as unknown as { label?: string }).label && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Tag className="h-3 w-3" />
+                        <span>{(currentReceipt as unknown as { label?: string }).label}</span>
+                      </div>
+                    )}
                   </div>
-                ) : null}
+                )}
               </div>
 
               {/* Attribution info */}
@@ -314,11 +387,18 @@ export function ReceiptList() {
               </div>
 
               {currentReceipt.image_url && (
-                <img
-                  src={currentReceipt.image_url}
-                  alt="Kvittering"
-                  className="w-full rounded-lg max-h-48 object-cover"
-                />
+                <button
+                  className="relative w-full group"
+                  onClick={() => setFullscreenImage(currentReceipt.image_url!)}
+                >
+                  <ReceiptImage
+                    src={currentReceipt.image_url}
+                    className="w-full rounded-lg max-h-48 object-cover"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/0 group-hover:bg-black/30 transition-colors">
+                    <ZoomIn className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </button>
               )}
 
               {currentReceipt.items && currentReceipt.items.length > 0 && categories && (
@@ -374,6 +454,21 @@ export function ReceiptList() {
                 </AlertDialog>
               </div>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Fullscreen image dialog */}
+      <Dialog open={!!fullscreenImage} onOpenChange={(open) => { if (!open) setFullscreenImage(null); }}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-2">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Kvitteringsbilde</DialogTitle>
+          </DialogHeader>
+          {fullscreenImage && (
+            <ReceiptImage
+              src={fullscreenImage}
+              className="w-full h-full object-contain max-h-[90vh] rounded-lg"
+            />
           )}
         </DialogContent>
       </Dialog>

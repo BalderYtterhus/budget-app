@@ -8,7 +8,7 @@ Norsk husholdningsbudsjett-app. Skann dagligvarekvitteringer med AI, spor forbru
 |---|---|
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS, shadcn/Radix UI |
 | Backend | Supabase (Postgres + RLS + Auth + Storage + Edge Functions) |
-| AI/OCR | Anthropic API (`claude-haiku-4-5-20251001`) |
+| AI/OCR | Anthropic API (`claude-sonnet-4-6`) |
 | State | React Context + TanStack React Query |
 | Charts | recharts |
 | PWA | manifest.json + Apple meta-tags |
@@ -16,9 +16,11 @@ Norsk husholdningsbudsjett-app. Skann dagligvarekvitteringer med AI, spor forbru
 ## Funksjoner
 
 - **Kvitteringsskanning** — last opp bilde → AI ekstraherer butikk, dato, varer og priser automatisk
+- **Manuell registrering** — skriv inn kvittering uten bilde direkte fra forsiden
+- **Rediger kvittering** — endre butikknavn, dato og beløp etter lagring
 - **Automatisk kategorisering** — AI kategoriserer varer og lærer av korrigeringer over tid
 - **Budsjett** — sett månedlig totalbudsjett og per-kategori budsjett
-- **Oppgjør** — to-pointer minimum-transaksjoner-algoritme beregner hvem som skylder hvem
+- **Oppgjør** — to-pointer minimum-transaksjoner-algoritme beregner hvem som skylder hvem; avslutt og start nytt oppgjør fra forsiden
 - **Handlelistematching** — handleliste-varer fjernes automatisk når kvitteringen lagres (fuzzy match ≥60%)
 - **Prissammenligning** — sammenlign estimert totalpris for handlelisten på tvers av butikkjeder
 - **Prisdatabase** — anonym prisdeling på tvers av brukere for pristrend-analyse
@@ -85,3 +87,4 @@ public_price_data       — anonym prisdatabase (ingen bruker/husholdnings-ID)
 - Ingen push-varsler for overbudsjett
 - Invitasjonstoken har ingen utløpsdato
 - Kald start: ingen prisestimater for nye husholdninger uten kvitteringshistorikk
+- Passordstyrke håndheves ikke i UI (settes i Supabase-dashbord)

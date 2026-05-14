@@ -19,12 +19,23 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, Users, Home, Settings, Edit2, Save, X, Check, Sun, Moon, Database } from "lucide-react";
+import { LogOut, Users, Home, Settings, Edit2, Save, X, Check, Sun, Moon, Database, UserMinus, DoorOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { HouseholdInvite } from "@/components/HouseholdInvite";
 import { useTheme } from "next-themes";
 import { Link } from "react-router-dom";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useLeaveHousehold, useRemoveMember } from "@/hooks/useBudgetData";
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
@@ -133,11 +144,18 @@ function HouseholdSettingsDialog({
   const { user } = useAuth();
   const { household, members, refetchHousehold } = useHousehold();
   const { toast } = useToast();
+  const leaveHousehold = useLeaveHousehold();
+  const removeMember = useRemoveMember();
   const [isEditingHousehold, setIsEditingHousehold] = useState(false);
   const [householdName, setHouseholdName] = useState(household?.name || "");
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const [editingMemberName, setEditingMemberName] = useState("");
   const [priceSharing, setPriceSharing] = useState<boolean | null>(null);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+
+  const currentRole = members.find(m => m.user_id === user?.id)?.role;
+  const isOwner = currentRole === "owner";
 
   // Load current consent preference when dialog opens
   const handleOpen = (isOpen: boolean) => {
@@ -326,13 +344,23 @@ function HouseholdSettingsDialog({
                           {member.role === "owner" ? "Eier" : "Medlem"}
                         </span>
                         {canEditMember(member) && (
-                          <Button 
-                            size="icon" 
-                            variant="ghost" 
+                          <Button
+                            size="icon"
+                            variant="ghost"
                             className="h-8 w-8"
                             onClick={() => handleStartEditMember(member)}
                           >
                             <Edit2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {isOwner && member.user_id !== user?.id && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            onClick={() => setConfirmRemoveId(member.user_id)}
+                          >
+                            <UserMinus className="h-3 w-3" />
                           </Button>
                         )}
                       </div>
@@ -377,8 +405,76 @@ function HouseholdSettingsDialog({
             </div>
           </div>
 
+          {/* Leave household (non-owner only) */}
+          {!isOwner && (
+            <div className="pt-2 border-t">
+              <Button
+                variant="outline"
+                className="w-full text-destructive border-destructive/40 hover:bg-destructive/10"
+                onClick={() => setConfirmLeave(true)}
+              >
+                <DoorOpen className="h-4 w-4 mr-2" />
+                Forlat husholdning
+              </Button>
+            </div>
+          )}
+
         </div>
       </DialogContent>
+
+      {/* Confirm leave */}
+      <AlertDialog open={confirmLeave} onOpenChange={setConfirmLeave}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Forlate husholdningen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Du mister tilgang til alle kvitteringer og budsjettdata. Dette kan ikke angres uten en ny invitasjon.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => leaveHousehold.mutate()}
+              disabled={leaveHousehold.isPending}
+            >
+              {leaveHousehold.isPending ? "Forlater…" : "Forlat"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirm remove member */}
+      <AlertDialog open={!!confirmRemoveId} onOpenChange={open => !open && setConfirmRemoveId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fjerne dette medlemmet?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmRemoveId && (
+                <>
+                  <strong>{members.find(m => m.user_id === confirmRemoveId)?.profile?.display_name || "Medlemmet"}</strong> mister tilgang til husholdningen. De kan inviteres på nytt.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Avbryt</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async () => {
+                if (confirmRemoveId) {
+                  await removeMember.mutateAsync(confirmRemoveId);
+                  await refetchHousehold();
+                  setConfirmRemoveId(null);
+                }
+              }}
+              disabled={removeMember.isPending}
+            >
+              {removeMember.isPending ? "Fjerner…" : "Fjern"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

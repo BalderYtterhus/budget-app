@@ -465,6 +465,7 @@ export function useSaveReceipt() {
       rawOcrText,
       paidByUser,
       settlementId,
+      label,
       items,
     }: {
       storeName: string | null;
@@ -475,6 +476,7 @@ export function useSaveReceipt() {
       rawOcrText: string | null;
       paidByUser: string | null;
       settlementId: string | null;
+      label: string | null;
       items: {
         rawText: string;
         normalizedName?: string;
@@ -500,6 +502,7 @@ export function useSaveReceipt() {
           created_by_user: user?.id || null,
           paid_by_user: paidByUser,
           settlement_id: settlementId,
+          label: label || null,
         })
         .select()
         .single();
@@ -790,6 +793,35 @@ export function useSaveSplitRatios() {
   });
 }
 
+export function useUpdateReceipt() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      receiptId,
+      updates,
+    }: {
+      receiptId: string;
+      updates: { store_name?: string; receipt_date?: string; total_amount?: number; label?: string | null };
+    }) => {
+      const { error } = await supabase
+        .from("receipts")
+        .update(updates)
+        .eq("id", receiptId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["spending-summary"] });
+      toast({ title: "Kvittering oppdatert" });
+    },
+    onError: () => {
+      toast({ title: "Feil ved oppdatering", variant: "destructive" });
+    },
+  });
+}
+
 export function useUpdateReceiptPayer() {
   const queryClient = useQueryClient();
 
@@ -864,6 +896,56 @@ export function useRecalculateReceiptTotal() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["receipts"] });
       queryClient.invalidateQueries({ queryKey: ["spending-summary"] });
+    },
+  });
+}
+
+export function useLeaveHousehold() {
+  const queryClient = useQueryClient();
+  const { household } = useHousehold();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!household) throw new Error("No household");
+      const { error } = await supabase
+        .from("household_memberships")
+        .delete()
+        .eq("household_id", household.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.clear();
+      toast({ title: "Du har forlatt husholdningen" });
+      window.location.href = "/auth";
+    },
+    onError: () => {
+      toast({ title: "Feil ved utmelding", variant: "destructive" });
+    },
+  });
+}
+
+export function useRemoveMember() {
+  const queryClient = useQueryClient();
+  const { household } = useHousehold();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async (userId: string) => {
+      if (!household) throw new Error("No household");
+      const { error } = await supabase
+        .from("household_memberships")
+        .delete()
+        .eq("household_id", household.id)
+        .eq("user_id", userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["household"] });
+      toast({ title: "Medlem fjernet" });
+    },
+    onError: () => {
+      toast({ title: "Feil ved fjerning av medlem", variant: "destructive" });
     },
   });
 }

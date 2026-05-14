@@ -25,8 +25,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Receipt, ScrollText, Trash2, ChevronRight, Store, User, AlertTriangle, AlertCircle, Ban } from "lucide-react";
-import { useMonthlyReceipts, useDeleteReceipt, useCategories, useUpdateReceiptPayer } from "@/hooks/useBudgetData";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Receipt, ScrollText, Trash2, ChevronRight, Store, User, AlertTriangle, AlertCircle, Ban, Pencil, Check, Tag } from "lucide-react";
+import { useMonthlyReceipts, useDeleteReceipt, useCategories, useUpdateReceiptPayer, useUpdateReceipt } from "@/hooks/useBudgetData";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { Receipt as ReceiptType } from "@/types/budget";
 import { format } from "date-fns";
@@ -41,7 +43,13 @@ export function ReceiptList() {
   const { members } = useHousehold();
   const deleteReceipt = useDeleteReceipt();
   const updateReceiptPayer = useUpdateReceiptPayer();
+  const updateReceipt = useUpdateReceipt();
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptType | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editStoreName, setEditStoreName] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editTotal, setEditTotal] = useState("");
+  const [editLabel, setEditLabel] = useState("");
 
   // Find the current receipt from the data (for real-time updates)
   const currentReceipt = useMemo(() => {
@@ -64,6 +72,29 @@ export function ReceiptList() {
 
   const handlePayerChange = async (receiptId: string, paidByUser: string) => {
     await updateReceiptPayer.mutateAsync({ receiptId, paidByUser });
+  };
+
+  const startEdit = (receipt: ReceiptType) => {
+    setEditStoreName(receipt.store_name || "");
+    setEditDate(receipt.receipt_date?.split("T")[0] || "");
+    setEditTotal(String(Number(receipt.total_amount)));
+    setEditLabel((receipt as unknown as { label?: string }).label || "");
+    setEditMode(true);
+  };
+
+  const saveEdit = async () => {
+    if (!currentReceipt) return;
+    const total = parseFloat(editTotal.replace(",", "."));
+    await updateReceipt.mutateAsync({
+      receiptId: currentReceipt.id,
+      updates: {
+        store_name: editStoreName || undefined,
+        receipt_date: editDate || undefined,
+        total_amount: isNaN(total) ? undefined : total,
+        label: editLabel.trim() || null,
+      },
+    });
+    setEditMode(false);
   };
 
   const getMemberName = (userId: string | null) => {
@@ -118,12 +149,18 @@ export function ReceiptList() {
                       <Store className="h-4 w-4 text-primary" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-sm sm:text-base truncate">
                           {receipt.store_name || "Ukjent butikk"}
                         </p>
                         {!receipt.paid_by_user && (
                           <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />
+                        )}
+                        {(receipt as unknown as { label?: string }).label && (
+                          <Badge variant="secondary" className="text-xs h-5 gap-1 shrink-0">
+                            <Tag className="h-2.5 w-2.5" />
+                            {(receipt as unknown as { label?: string }).label}
+                          </Badge>
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground">
@@ -157,13 +194,32 @@ export function ReceiptList() {
       {/* Receipt Detail Dialog */}
       <Dialog
         open={!!selectedReceipt}
-        onOpenChange={(open) => !open && setSelectedReceipt(null)}
+        onOpenChange={(open) => { if (!open) { setSelectedReceipt(null); setEditMode(false); } }}
       >
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto mx-4 sm:mx-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Store className="h-5 w-5" />
-              {selectedReceipt?.store_name || "Kvitteringsdetaljer"}
+              {editMode ? (
+                <Input
+                  value={editStoreName}
+                  onChange={e => setEditStoreName(e.target.value)}
+                  className="h-7 text-base font-semibold"
+                  placeholder="Butikknavn"
+                  autoFocus
+                />
+              ) : (
+                <span className="truncate">{currentReceipt?.store_name || "Kvitteringsdetaljer"}</span>
+              )}
+              {!editMode ? (
+                <Button variant="ghost" size="icon" className="h-7 w-7 ml-auto shrink-0" onClick={() => currentReceipt && startEdit(currentReceipt)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+              ) : (
+                <Button variant="ghost" size="icon" className="h-7 w-7 ml-auto shrink-0" onClick={saveEdit} disabled={updateReceipt.isPending}>
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                </Button>
+              )}
             </DialogTitle>
           </DialogHeader>
 
@@ -171,23 +227,37 @@ export function ReceiptList() {
             <div className="space-y-4">
               {/* Header with totals */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">
-                    {format(
-                      new Date(currentReceipt.receipt_date),
-                      "d. MMMM yyyy",
-                      { locale: nb }
-                    )}
-                  </span>
-                  <div className="text-right">
+                <div className="flex items-center justify-between gap-3">
+                  {editMode ? (
+                    <Input
+                      type="date"
+                      value={editDate}
+                      onChange={e => setEditDate(e.target.value)}
+                      className="h-8 text-sm w-auto"
+                    />
+                  ) : (
+                    <span className="text-sm text-muted-foreground">
+                      {format(new Date(currentReceipt.receipt_date), "d. MMMM yyyy", { locale: nb })}
+                    </span>
+                  )}
+                  <div className="text-right shrink-0">
                     {includedSubtotal !== null && includedSubtotal !== Number(currentReceipt.total_amount) && (
                       <div className="text-xs text-muted-foreground line-through">
                         Skannet: {formatNOK(Number(currentReceipt.total_amount))}
                       </div>
                     )}
-                    <span className="text-xl font-bold tabular-nums">
-                      {formatNOK(includedSubtotal ?? Number(currentReceipt.total_amount))}
-                    </span>
+                    {editMode ? (
+                      <Input
+                        value={editTotal}
+                        onChange={e => setEditTotal(e.target.value)}
+                        className="h-8 text-right font-bold w-32"
+                        placeholder="0.00"
+                      />
+                    ) : (
+                      <span className="text-xl font-bold tabular-nums">
+                        {formatNOK(includedSubtotal ?? Number(currentReceipt.total_amount))}
+                      </span>
+                    )}
                   </div>
                 </div>
                 {excludedCount > 0 && (
@@ -196,6 +266,22 @@ export function ReceiptList() {
                     <span>{excludedCount} vare{excludedCount > 1 ? 'r' : ''} ekskludert fra totaler</span>
                   </div>
                 )}
+                {editMode ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <Tag className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <Input
+                      value={editLabel}
+                      onChange={e => setEditLabel(e.target.value)}
+                      className="h-7 text-sm"
+                      placeholder="Etikett (valgfri)"
+                    />
+                  </div>
+                ) : (currentReceipt as unknown as { label?: string }).label ? (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+                    <Tag className="h-3 w-3" />
+                    <span>{(currentReceipt as unknown as { label?: string }).label}</span>
+                  </div>
+                ) : null}
               </div>
 
               {/* Attribution info */}

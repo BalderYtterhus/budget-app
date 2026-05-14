@@ -59,7 +59,7 @@ interface PriceStatRow {
   last_seen: string;
 }
 
-// Returns the distinct store chains seen in the last 90 days
+// Returns the distinct store chains seen in the last 90 days (falls back to public_price_data)
 export function useKnownStores() {
   const { household } = useHousehold();
 
@@ -80,7 +80,17 @@ export function useKnownStores() {
       if (error) throw error;
 
       const chains = [...new Set((data || []).map(r => r.store_chain).filter(Boolean))];
-      return chains.sort();
+      if (chains.length > 0) return chains.sort();
+
+      // Cold start: fall back to public_price_data for distinct chains
+      const { data: pub } = await supabase
+        .from("public_price_data")
+        .select("store_chain")
+        .not("store_chain", "is", null)
+        .gte("receipt_date", ninetyDaysAgo.toISOString().split("T")[0]);
+
+      const pubChains = [...new Set((pub || []).map(r => r.store_chain).filter(Boolean))];
+      return pubChains.sort();
     },
     enabled: !!household,
     staleTime: 60_000,
@@ -110,7 +120,33 @@ export function useStoreComparison(shoppingItems: ShoppingListItem[]) {
 
       if (error) throw error;
 
-      const rows = (data || []) as PriceStatRow[];
+      let rows = (data || []) as PriceStatRow[];
+
+      // Cold start: if no household data, fall back to community public_price_data
+      if (rows.length === 0) {
+        const { data: pubData } = await supabase
+          .from("public_price_data")
+          .select("store_chain, normalized_name, price, unit_price, quantity, receipt_date")
+          .not("store_chain", "is", null)
+          .not("normalized_name", "is", null)
+          .gte("receipt_date", ninetyDaysAgo.toISOString().split("T")[0]);
+
+        // Aggregate into PriceStatRow shape (median approximation: average over community rows)
+        const pubByKey = new Map<string, { prices: number[]; last: string }>();
+        for (const p of (pubData || [])) {
+          const key = `${p.store_chain}||${p.normalized_name}`;
+          const eff = p.unit_price ?? (p.price / Math.max(p.quantity ?? 1, 1));
+          if (!pubByKey.has(key)) pubByKey.set(key, { prices: [], last: p.receipt_date });
+          pubByKey.get(key)!.prices.push(eff);
+          if (p.receipt_date > pubByKey.get(key)!.last) pubByKey.get(key)!.last = p.receipt_date;
+        }
+        rows = [...pubByKey.entries()].map(([key, { prices, last }]) => {
+          const [chain, name] = key.split("||");
+          const sorted = [...prices].sort((a, b) => a - b);
+          const median = sorted[Math.floor(sorted.length / 2)];
+          return { store_chain: chain, normalized_name: name, median_unit_price: median, sample_count: prices.length, last_seen: last };
+        });
+      }
 
       // Group rows by store_chain
       const byChain = new Map<string, PriceStatRow[]>();

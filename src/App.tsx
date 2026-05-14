@@ -34,18 +34,21 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/install" element={<Install />} />
               <Route path="/join" element={<JoinHousehold />} />
-              <Route
-                path="/"
-                element={
-                  <RequireAuth>
-                    <HouseholdProvider>
-                      <SettlementProvider>
-                        <Index />
-                      </SettlementProvider>
-                    </HouseholdProvider>
-                  </RequireAuth>
-                }
-              />
+              {["/", "/kvitteringer", "/oppgjor", "/kategorier", "/rapporter"].map(path => (
+                <Route
+                  key={path}
+                  path={path}
+                  element={
+                    <RequireAuth>
+                      <HouseholdProvider>
+                        <SettlementProvider>
+                          <Index />
+                        </SettlementProvider>
+                      </HouseholdProvider>
+                    </RequireAuth>
+                  }
+                />
+              ))}
               <Route
                 path="/store-comparison"
                 element={

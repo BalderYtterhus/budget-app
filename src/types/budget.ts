@@ -26,6 +26,7 @@ export interface CategoryBudget {
 export interface Receipt {
   id: string;
   store_name: string | null;
+  store_chain: string | null;
   total_amount: number;
   receipt_date: string;
   image_url: string | null;

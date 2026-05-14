@@ -100,3 +100,42 @@ export function useCloseSettlement() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settlements"] }),
   });
 }
+
+export function useReopenSettlement() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (settlementId: string) => {
+      const { error } = await supabase
+        .from("settlements")
+        .update({ status: "active" })
+        .eq("id", settlementId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settlements"] }),
+  });
+}
+
+export function useClosedSettlements() {
+  const { household } = useHousehold();
+
+  return useQuery({
+    queryKey: ["closed-settlements", household?.id],
+    queryFn: async () => {
+      if (!household) return [];
+
+      const { data, error } = await supabase
+        .from("settlements")
+        .select("*")
+        .eq("household_id", household.id)
+        .eq("status", "closed")
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+      return data as Settlement[];
+    },
+    enabled: !!household,
+  });
+}

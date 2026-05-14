@@ -19,6 +19,7 @@ import {
   Edit2,
   Check,
   X,
+  ListX,
 } from "lucide-react";
 import {
   useShoppingList,
@@ -26,6 +27,7 @@ import {
   useUpdateShoppingListItem,
   useDeleteShoppingListItem,
   useEstimatePrices,
+  useClearShoppingList,
 } from "@/hooks/useShoppingList";
 import { useCategories } from "@/hooks/useBudgetData";
 import { formatNOK } from "@/lib/format";
@@ -47,6 +49,8 @@ export function ShoppingList() {
   const addItem = useAddShoppingListItem();
   const updateItem = useUpdateShoppingListItem();
   const deleteItem = useDeleteShoppingListItem();
+  const clearList = useClearShoppingList();
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const handleAddItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,9 +130,37 @@ export function ShoppingList() {
             Handleliste
           </CardTitle>
           {items.length > 0 && (
-            <span className="text-sm text-muted-foreground">
-              {items.length} {items.length === 1 ? "vare" : "varer"}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">
+                {items.length} {items.length === 1 ? "vare" : "varer"}
+              </span>
+              {showClearConfirm ? (
+                <div className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="h-7 text-xs"
+                    onClick={async () => { await clearList.mutateAsync(); setShowClearConfirm(false); }}
+                    disabled={clearList.isPending}
+                  >
+                    Tøm
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowClearConfirm(false)}>
+                    Avbryt
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                  title="Tøm listen"
+                  onClick={() => setShowClearConfirm(true)}
+                >
+                  <ListX className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           )}
         </CardHeader>
         <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">

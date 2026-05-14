@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -165,6 +165,7 @@ export function SettlementOversikt() {
             return (
               <div key={member.user_id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/40">
                 <Avatar className="h-8 w-8 shrink-0">
+                  {member.profile?.avatar_url && <AvatarImage src={member.profile.avatar_url} />}
                   <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                     {getInitials(member.user_id)}
                   </AvatarFallback>

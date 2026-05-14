@@ -16,10 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, Users, Home, Settings, Edit2, Save, X, Check, Sun, Moon, Database, UserMinus, DoorOpen } from "lucide-react";
+import { LogOut, Users, Home, Settings, Edit2, Save, X, Check, Sun, Moon, Database, UserMinus, DoorOpen, UserCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { HouseholdInvite } from "@/components/HouseholdInvite";
@@ -36,21 +36,21 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useLeaveHousehold, useRemoveMember } from "@/hooks/useBudgetData";
+import { ProfileDialog } from "@/components/ProfileDialog";
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
   const { household, members } = useHousehold();
   const [showHouseholdSettings, setShowHouseholdSettings] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const { theme, setTheme } = useTheme();
 
   if (!user) return null;
 
-  const initials = user.email
-    ? user.email.substring(0, 2).toUpperCase()
-    : "??";
-
   const currentMember = members.find(m => m.user_id === user.id);
   const displayName = currentMember?.profile?.display_name || user.email?.split("@")[0];
+  const avatarUrl = currentMember?.profile?.avatar_url || null;
+  const initials = (displayName || user.email || "??").slice(0, 2).toUpperCase();
 
   return (
     <>
@@ -58,6 +58,7 @@ export function UserMenu() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-9 w-9 rounded-full">
             <Avatar className="h-9 w-9">
+              {avatarUrl && <AvatarImage src={avatarUrl} />}
               <AvatarFallback className="bg-primary/10 text-primary text-sm">
                 {initials}
               </AvatarFallback>
@@ -79,6 +80,10 @@ export function UserMenu() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           
+          <DropdownMenuItem onClick={() => setShowProfile(true)}>
+            <UserCircle className="mr-2 h-4 w-4" />
+            Min profil
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => setShowHouseholdSettings(true)}>
             <Settings className="mr-2 h-4 w-4" />
             Husholdningsinnstillinger
@@ -125,10 +130,10 @@ export function UserMenu() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      {/* Household Settings Dialog */}
-      <HouseholdSettingsDialog 
-        open={showHouseholdSettings} 
-        onOpenChange={setShowHouseholdSettings} 
+      <ProfileDialog open={showProfile} onOpenChange={setShowProfile} />
+      <HouseholdSettingsDialog
+        open={showHouseholdSettings}
+        onOpenChange={setShowHouseholdSettings}
       />
     </>
   );
@@ -305,7 +310,7 @@ function HouseholdSettingsDialog({
                   className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border"
                 >
                   {editingMemberId === member.user_id ? (
-                    <div className="flex gap-2 flex-1">
+                    <div className="flex gap-2 flex-1 items-center">
                       <Input
                         value={editingMemberName}
                         onChange={(e) => setEditingMemberName(e.target.value)}
@@ -331,13 +336,21 @@ function HouseholdSettingsDialog({
                     </div>
                   ) : (
                     <>
-                      <div className="flex flex-col">
-                        <span className="font-medium text-sm">{getMemberName(member)}</span>
-                        {member.profile?.email && member.profile.display_name && (
-                          <span className="text-xs text-muted-foreground">
-                            {member.profile.email}
-                          </span>
-                        )}
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <Avatar className="h-8 w-8 shrink-0">
+                          {member.profile?.avatar_url && <AvatarImage src={member.profile.avatar_url} />}
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                            {getMemberName(member).slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-medium text-sm truncate">{getMemberName(member)}</span>
+                          {member.profile?.email && member.profile.display_name && (
+                            <span className="text-xs text-muted-foreground truncate">
+                              {member.profile.email}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary capitalize">

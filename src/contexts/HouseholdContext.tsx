@@ -17,6 +17,7 @@ interface HouseholdMember {
   profile?: {
     display_name: string | null;
     email: string | null;
+    avatar_url: string | null;
   };
 }
 
@@ -91,7 +92,7 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
         const userIds = membersData.map(m => m.user_id);
         const { data: profilesData } = await supabase
           .from("profiles")
-          .select("user_id, display_name, email")
+          .select("user_id, display_name, email, avatar_url")
           .in("user_id", userIds);
 
         const membersWithProfiles = membersData.map(member => ({

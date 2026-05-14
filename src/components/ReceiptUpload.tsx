@@ -35,7 +35,7 @@ interface ReviewItem {
   confidence: number;
 }
 
-export function ReceiptUpload({ onSuccess }: { onSuccess?: () => void } = {}) {
+export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => void; startManual?: boolean } = {}) {
   const [state, setState] = useState<UploadState>("idle");
   const [dragActive, setDragActive] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -49,6 +49,7 @@ export function ReceiptUpload({ onSuccess }: { onSuccess?: () => void } = {}) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [paidByUser, setPaidByUser] = useState<string>("");
   const [storeChain, setStoreChain] = useState<string | null>(null);
+  const [receiptLabel, setReceiptLabel] = useState("");
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
@@ -69,6 +70,14 @@ export function ReceiptUpload({ onSuccess }: { onSuccess?: () => void } = {}) {
       setPaidByUser(user.id);
     }
   }, [user]);
+
+  // Jump directly to manual entry when startManual is set
+  useEffect(() => {
+    if (startManual && state === "idle") {
+      setState("review");
+      if (user) setPaidByUser(user.id);
+    }
+  }, [startManual]);
 
   // Client-side fallback categorization using learned mappings
   const findCategoryForItem = useCallback(
@@ -301,6 +310,7 @@ export function ReceiptUpload({ onSuccess }: { onSuccess?: () => void } = {}) {
     setStoreChain(null);
     setTotalAmount("");
     setReceiptDate(new Date().toISOString().split("T")[0]);
+    setReceiptLabel("");
     if (user) setPaidByUser(user.id);
     setState("review");
   };
@@ -327,6 +337,7 @@ export function ReceiptUpload({ onSuccess }: { onSuccess?: () => void } = {}) {
         rawOcrText: parsedData?.rawText || null,
         paidByUser: paidByUser || null,
         settlementId: activeSettlement?.id || null,
+        label: receiptLabel.trim() || null,
         items: itemsToSave,
       });
 
@@ -369,6 +380,7 @@ export function ReceiptUpload({ onSuccess }: { onSuccess?: () => void } = {}) {
         setReceiptDate(new Date().toISOString().split("T")[0]);
         setImageUrl(null);
         setPaidByUser(user?.id || "");
+        setReceiptLabel("");
       }, 2000);
     } catch (error) {
       console.error("Error saving receipt:", error);
@@ -391,6 +403,7 @@ export function ReceiptUpload({ onSuccess }: { onSuccess?: () => void } = {}) {
     setReceiptDate(new Date().toISOString().split("T")[0]);
     setImageUrl(null);
     setPaidByUser(user?.id || "");
+    setReceiptLabel("");
   };
 
   const getMemberName = (userId: string) => {
@@ -569,6 +582,17 @@ export function ReceiptUpload({ onSuccess }: { onSuccess?: () => void } = {}) {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="label" className="text-sm">Etikett <span className="text-muted-foreground font-normal">(valgfri)</span></Label>
+              <Input
+                id="label"
+                value={receiptLabel}
+                onChange={(e) => setReceiptLabel(e.target.value)}
+                placeholder="f.eks. hyttetur, fest, dagligvarer"
+                className="min-h-[44px] text-base sm:text-sm"
+              />
             </div>
 
             <div className="space-y-2">

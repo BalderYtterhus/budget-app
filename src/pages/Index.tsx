@@ -20,7 +20,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { ShoppingCart, Download, Camera, ChevronDown, BarChart2 } from "lucide-react";
+import { ShoppingCart, Download, Camera, ChevronDown, BarChart2, Pencil } from "lucide-react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -32,6 +32,7 @@ const Index = () => {
   const [showInstallLink, setShowInstallLink] = useState(false);
   const [showTrend, setShowTrend] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
 
   useEffect(() => {
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
@@ -58,7 +59,7 @@ const Index = () => {
               </div>
               <div className="min-w-0">
                 <h1 className="text-lg sm:text-xl font-display font-bold truncate">BudgetBandz</h1>
-                <p className="text-xs sm:text-sm text-muted-foreground truncate hidden sm:block">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   <SettlementSwitcher />
                 </p>
               </div>
@@ -86,18 +87,27 @@ const Index = () => {
 
           {/* 2. Add receipt — prominent CTA */}
           <section className="animate-fade-in" style={{ animationDelay: "50ms" }}>
-            <button
-              onClick={() => setUploadOpen(true)}
-              className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-dashed border-primary/25 bg-primary/5 hover:bg-primary/10 hover:border-primary/40 active:scale-[0.99] transition-all group text-left"
-            >
-              <div className="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors shrink-0">
-                <Camera className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-semibold text-sm sm:text-base">Legg til kvittering</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Skann eller last opp bilde</p>
-              </div>
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setManualMode(false); setUploadOpen(true); }}
+                className="flex-1 flex items-center gap-4 p-4 rounded-xl border-2 border-dashed border-primary/25 bg-primary/5 hover:bg-primary/10 hover:border-primary/40 active:scale-[0.99] transition-all group text-left"
+              >
+                <div className="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors shrink-0">
+                  <Camera className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm sm:text-base">Legg til kvittering</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Skann eller last opp bilde</p>
+                </div>
+              </button>
+              <button
+                onClick={() => { setManualMode(true); setUploadOpen(true); }}
+                className="flex flex-col items-center justify-center gap-1.5 px-4 py-3 rounded-xl border border-border bg-card hover:bg-accent active:scale-[0.99] transition-all text-muted-foreground hover:text-foreground shrink-0"
+              >
+                <Pencil className="h-4 w-4" />
+                <span className="text-xs font-medium whitespace-nowrap">Manuelt</span>
+              </button>
+            </div>
           </section>
 
           {/* 3. Settlement oversikt */}
@@ -169,16 +179,19 @@ const Index = () => {
       <ConsentModal />
 
       {/* Receipt upload sheet */}
-      <Sheet open={uploadOpen} onOpenChange={setUploadOpen}>
+      <Sheet open={uploadOpen} onOpenChange={(open) => { setUploadOpen(open); if (!open) setManualMode(false); }}>
         <SheetContent side="bottom" className="h-[92dvh] flex flex-col p-0 rounded-t-2xl sm:max-w-2xl sm:mx-auto">
           <SheetHeader className="px-4 pt-4 pb-2 border-b shrink-0">
             <SheetTitle className="flex items-center gap-2">
-              <Camera className="h-4 w-4" />
-              Legg til kvittering
+              {manualMode ? <Pencil className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
+              {manualMode ? "Skriv inn kvittering" : "Legg til kvittering"}
             </SheetTitle>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto">
-            <ReceiptUpload onSuccess={() => setTimeout(() => setUploadOpen(false), 1500)} />
+            <ReceiptUpload
+              startManual={manualMode}
+              onSuccess={() => setTimeout(() => setUploadOpen(false), 1500)}
+            />
           </div>
         </SheetContent>
       </Sheet>

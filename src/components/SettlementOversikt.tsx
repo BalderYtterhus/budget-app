@@ -1,17 +1,64 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowRight, AlertTriangle, CheckCircle, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { ArrowRight, AlertTriangle, CheckCircle, Users, X } from "lucide-react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useMonthlyReceipts, useSplitRatios } from "@/hooks/useBudgetData";
 import { useSettlementContext } from "@/contexts/SettlementContext";
+import { useCloseSettlement, useCreateSettlement } from "@/hooks/useSettlements";
 import { formatNOK } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 export function SettlementOversikt() {
   const { members } = useHousehold();
   const { activeSettlement } = useSettlementContext();
+  const closeSettlement = useCloseSettlement();
+  const createSettlement = useCreateSettlement();
+  const { toast } = useToast();
+  const [showCloseDialog, setShowCloseDialog] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [newName, setNewName] = useState("");
   const { data: receipts } = useMonthlyReceipts();
   const { data: splitRatios } = useSplitRatios();
+
+  const handleClose = async () => {
+    if (!activeSettlement) return;
+    await closeSettlement.mutateAsync(activeSettlement.id);
+    setShowCloseDialog(false);
+    setNewName(`Oppgjør ${new Date().toLocaleDateString("nb-NO", { month: "long", year: "numeric" })}`);
+    setShowCreateDialog(true);
+  };
+
+  const handleCreate = async () => {
+    const name = newName.trim() || `Oppgjør ${new Date().toLocaleDateString("nb-NO", { month: "long", year: "numeric" })}`;
+    const memberIds = members.map(m => m.user_id);
+    const ratios: Record<string, number> = {};
+    memberIds.forEach(id => { ratios[id] = 100 / memberIds.length; });
+    await createSettlement.mutateAsync({ name, memberIds, ratios });
+    setShowCreateDialog(false);
+    toast({ title: "Nytt oppgjør startet!" });
+  };
 
   const getMemberName = (userId: string) => {
     const member = members.find(m => m.user_id === userId);
@@ -67,6 +114,7 @@ export function SettlementOversikt() {
   if (members.length < 2) return null;
 
   return (
+    <>
     <Card className="shadow-card">
       <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
         <div className="flex items-center justify-between">
@@ -74,11 +122,24 @@ export function SettlementOversikt() {
             <Users className="h-4 w-4" />
             Oversikt
           </CardTitle>
-          {activeSettlement && (
-            <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
-              {activeSettlement.name}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {activeSettlement && (
+              <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
+                {activeSettlement.name}
+              </span>
+            )}
+            {activeSettlement && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setShowCloseDialog(true)}
+              >
+                <X className="h-3 w-3 mr-1" />
+                Avslutt
+              </Button>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-3">
@@ -147,5 +208,50 @@ export function SettlementOversikt() {
         ) : null}
       </CardContent>
     </Card>
+
+    {/* Close confirmation */}
+    <AlertDialog open={showCloseDialog} onOpenChange={setShowCloseDialog}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Avslutte oppgjøret?</AlertDialogTitle>
+          <AlertDialogDescription>
+            «{activeSettlement?.name}» lukkes. Du kan ikke legge til nye kvitteringer i dette oppgjøret etterpå. Du blir bedt om å starte et nytt.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Avbryt</AlertDialogCancel>
+          <AlertDialogAction onClick={handleClose} disabled={closeSettlement.isPending}>
+            {closeSettlement.isPending ? "Lukker…" : "Avslutt oppgjør"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
+    {/* Create new settlement */}
+    <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Start nytt oppgjør</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          <Label htmlFor="settlement-name">Navn på oppgjøret</Label>
+          <Input
+            id="settlement-name"
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder="F.eks. Mai 2026"
+            onKeyDown={e => e.key === "Enter" && handleCreate()}
+            autoFocus
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Hopp over</Button>
+          <Button onClick={handleCreate} disabled={createSettlement.isPending}>
+            {createSettlement.isPending ? "Oppretter…" : "Start oppgjør"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

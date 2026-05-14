@@ -6,7 +6,7 @@ Norwegian household grocery budget tracker. Multiple people share expenses, scan
 ## Stack
 - **Frontend**: React 19, TypeScript, Vite, Tailwind CSS, shadcn/Radix UI
 - **Backend**: Supabase (Postgres, Auth, Storage, Edge Functions)
-- **AI/OCR**: Anthropic API (`claude-haiku-4-5-20251001`) via Edge Function
+- **AI/OCR**: Anthropic API (`claude-sonnet-4-6`) via Edge Function
 - **State**: React Context + TanStack React Query
 - **Charts**: recharts
 - **PWA**: manifest.json, Apple meta tags
@@ -81,8 +81,8 @@ public/
 ## Main page layout (Index.tsx)
 1. Sticky header — logo, MonthSelector, CategoryReviewButton, ExportData, BudgetSettings, UserMenu
 2. SpendingOverview — 3 cards (totalt brukt, budsjettstatus, gjenstående)
-3. "Legg til kvittering" CTA — opens ReceiptUpload in a bottom Sheet, auto-closes after save
-4. SettlementOversikt — member avatars, paid/share/balance, settlement transactions
+3. CTA row — "Legg til kvittering" (camera, OCR) + "Manuelt" (pencil, skips to review step) — both open bottom Sheet
+4. SettlementOversikt — member avatars, paid/share/balance, settlement transactions, "Avslutt" button
 5. Spending trend toggle — collapsed by default, expands SpendingTrend chart
 6. Two-column grid — ReceiptList | ShoppingList + CategoryBreakdown
 7. ConsentModal — shown once on first login if price_sharing_enabled IS NULL
@@ -93,6 +93,7 @@ public/
 - `useMonthlyReceipts`, `useSpendingSummary`
 - `useSaveReceipt` — saves receipt + items + auto-learns mappings + calls submit-price-data Edge Function
 - `useUpdateItemCategory` — updates category + mapping table
+- `useUpdateReceipt` — updates store_name, receipt_date, total_amount on a receipt
 - `useUpdateReceiptItem`, `useDeleteReceipt`, `useUpdateReceiptPayer`
 - `useItemMappings`, `useSplitRatios`, `useSaveSplitRatios`
 - `useSettlements`, `useCreateSettlement`, `useCloseSettlement`
@@ -103,10 +104,10 @@ public/
 - `useKnownStores` — distinct store chains from `item_price_stats`
 
 ## Key components
-- `ReceiptUpload` — full OCR flow with review step, accepts `onSuccess` callback
-- `ReceiptList` — lists receipts with item detail, payer assignment
+- `ReceiptUpload` — full OCR flow with review step; accepts `onSuccess` and `startManual` props (`startManual=true` skips image upload and jumps straight to entry)
+- `ReceiptList` — lists receipts with item detail, payer assignment, inline edit (store name, date, total) via pencil icon in detail dialog
 - `Settlement` — full settlement card with split ratio settings (not on main page)
-- `SettlementOversikt` — compact member balance card (on main page)
+- `SettlementOversikt` — compact member balance card; "Avslutt" button closes active settlement and prompts to create a new one
 - `SettlementSwitcher` — dropdown to switch active settlement in header
 - `ConsentModal` — price sharing consent dialog (first login)
 - `CategoryReviewButton` — header button with badge, opens Sheet for bulk category fixes
@@ -129,8 +130,6 @@ public/
 - Invite token has no expiry date
 - Cold start: no price estimates for households with no receipt history
 - Password strength not enforced in UI (set in Supabase dashboard)
-- Settlement UI: no clear "close settlement and start new one" flow on main page
-- Manual receipt entry point is buried inside the upload sheet
 
 ## Running locally
 ```bash

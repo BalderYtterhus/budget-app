@@ -52,6 +52,35 @@ serve(async (req) => {
       });
     }
 
+    // Rate limiting: max 100 rows per request (no real receipt exceeds this)
+    if (rows.length > 100) {
+      return new Response(JSON.stringify({ error: "Too many rows per request (max 100)" }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Per-user hourly rate limit: count rows submitted in the last hour using submitted_by_user_hash
+    // We store a one-way SHA-256 hash of the user ID so we can rate-limit without linking to identity
+    const userIdBytes = new TextEncoder().encode(user.id + Deno.env.get("SUPABASE_URL"));
+    const hashBuffer = await crypto.subtle.digest("SHA-256", userIdBytes);
+    const userHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count } = await admin
+      .from("public_price_data")
+      .select("*", { count: "exact", head: true })
+      .eq("submitted_by_user_hash", userHash)
+      .gte("submitted_at", oneHourAgo);
+
+    const hourlyCount = count ?? 0;
+    if (hourlyCount + rows.length > 500) {
+      return new Response(JSON.stringify({ error: "Rate limit exceeded (500 rows/hour)" }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Sanitize: only accept known fields, strip anything else, enforce types
     const sanitized = (rows as any[])
       .map(r => ({
@@ -66,6 +95,7 @@ serve(async (req) => {
                            ? Math.min(1, Math.max(0, Number(r.confidence)))
                            : null,
         country_code:    "NO",
+        submitted_by_user_hash: userHash,
       }))
       .filter(r =>
         r.store_chain &&

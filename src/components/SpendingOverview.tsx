@@ -33,6 +33,20 @@ export function SpendingOverview() {
   const { totalSpent, totalBudget, remaining, percentUsed, isOverBudget } = summary;
 
   return (
+    <div className="space-y-3">
+    {totalBudget > 0 && (isOverBudget || percentUsed >= 90) && (
+      <div className={cn(
+        "flex items-center gap-3 p-3 rounded-lg border text-sm font-medium",
+        isOverBudget
+          ? "bg-destructive/10 border-destructive/30 text-destructive"
+          : "bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300"
+      )}>
+        <AlertTriangle className="h-4 w-4 shrink-0" />
+        {isOverBudget
+          ? `Du er ${formatNOK(Math.abs(remaining))} over budsjettet denne måneden.`
+          : `Advarsel: du har brukt ${percentUsed.toFixed(0)}% av månedensbudsjettet.`}
+      </div>
+    )}
     <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
       {/* Total Spent */}
       <Card className="shadow-card">
@@ -113,6 +127,7 @@ export function SpendingOverview() {
           </p>
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 }

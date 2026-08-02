@@ -124,6 +124,14 @@ export function useUpdateCategory() {
           .update({ category_id: newCategory.id })
           .eq("category_id", id);
 
+        // Carry the AI prediction log across too. Without this, every item the
+        // model got right before the rename would look like a disagreement in
+        // the accuracy metrics (prediction = old category, final = new copy).
+        await supabase
+          .from("receipt_items")
+          .update({ ai_predicted_category_id: newCategory.id })
+          .eq("ai_predicted_category_id", id);
+
         await supabase
           .from("item_category_mappings")
           .update({ category_id: newCategory.id })
@@ -196,6 +204,13 @@ export function useDeleteCategory() {
           .from("receipt_items")
           .update({ category_id: reassignToId })
           .eq("category_id", categoryId);
+
+        // Keep the prediction log pointing somewhere real. The FK would
+        // otherwise null it on delete, silently dropping eval history.
+        await supabase
+          .from("receipt_items")
+          .update({ ai_predicted_category_id: reassignToId })
+          .eq("ai_predicted_category_id", categoryId);
 
         await supabase
           .from("item_category_mappings")
@@ -300,7 +315,7 @@ export function useMonthlyReceipts() {
           *,
           items:receipt_items (
             *,
-            category:categories (*)
+            category:categories!receipt_items_category_id_fkey (*)
           )
         `)
         .eq("settlement_id", activeSettlement.id)

@@ -58,7 +58,7 @@ function useItemsNeedingReview() {
             store_name,
             receipt_date
           ),
-          category:categories (id, name)
+          category:categories!receipt_items_category_id_fkey (id, name)
         `)
         .or("needs_review.eq.true,category_id.is.null")
         .order("created_at", { ascending: false })

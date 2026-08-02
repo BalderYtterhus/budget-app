@@ -485,6 +485,7 @@ export function useSaveReceipt() {
         unitPrice?: number | null;
         categoryId: string | null;
         needsReview?: boolean;
+        confidence?: number;
       }[];
     }) => {
       if (!household) throw new Error("No household selected");
@@ -522,6 +523,7 @@ export function useSaveReceipt() {
               unit_price: item.unitPrice ?? null,
               category_id: item.categoryId,
               needs_review: item.needsReview ?? false,
+              confidence: item.confidence ?? null,
             }))
           );
 
@@ -545,7 +547,7 @@ export function useSaveReceipt() {
               unit_price: i.unitPrice ?? null,
               quantity: i.quantity || 1,
               receipt_date: receiptDate,
-              confidence: (i as any).confidence ?? null,
+              confidence: i.confidence ?? null,
             }));
 
           if (priceRows.length > 0) {

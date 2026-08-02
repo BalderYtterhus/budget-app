@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       budgets: {
@@ -196,6 +221,7 @@ export type Database = {
           created_at: string
           id: string
           invite_enabled: boolean | null
+          invite_expires_at: string | null
           invite_token: string | null
           name: string
           updated_at: string
@@ -204,6 +230,7 @@ export type Database = {
           created_at?: string
           id?: string
           invite_enabled?: boolean | null
+          invite_expires_at?: string | null
           invite_token?: string | null
           name?: string
           updated_at?: string
@@ -212,6 +239,7 @@ export type Database = {
           created_at?: string
           id?: string
           invite_enabled?: boolean | null
+          invite_expires_at?: string | null
           invite_token?: string | null
           name?: string
           updated_at?: string
@@ -265,38 +293,91 @@ export type Database = {
       }
       profiles: {
         Row: {
+          avatar_url: string | null
           created_at: string
           display_name: string | null
           email: string | null
           id: string
+          price_sharing_enabled: boolean | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
           id?: string
+          price_sharing_enabled?: boolean | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
           id?: string
+          price_sharing_enabled?: boolean | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      public_price_data: {
+        Row: {
+          category_name: string | null
+          confidence: number | null
+          country_code: string
+          id: string
+          normalized_name: string
+          price: number
+          quantity: number
+          receipt_date: string
+          store_chain: string
+          submitted_at: string
+          submitted_by_user_hash: string | null
+          unit_price: number | null
+        }
+        Insert: {
+          category_name?: string | null
+          confidence?: number | null
+          country_code?: string
+          id?: string
+          normalized_name: string
+          price: number
+          quantity?: number
+          receipt_date: string
+          store_chain: string
+          submitted_at?: string
+          submitted_by_user_hash?: string | null
+          unit_price?: number | null
+        }
+        Update: {
+          category_name?: string | null
+          confidence?: number | null
+          country_code?: string
+          id?: string
+          normalized_name?: string
+          price?: number
+          quantity?: number
+          receipt_date?: string
+          store_chain?: string
+          submitted_at?: string
+          submitted_by_user_hash?: string | null
+          unit_price?: number | null
         }
         Relationships: []
       }
       receipt_items: {
         Row: {
           category_id: string | null
+          confidence: number | null
           created_at: string
           id: string
           included_in_totals: boolean
           needs_review: boolean
+          normalized_name: string | null
           price: number
           quantity: number
           raw_text: string
@@ -305,10 +386,12 @@ export type Database = {
         }
         Insert: {
           category_id?: string | null
+          confidence?: number | null
           created_at?: string
           id?: string
           included_in_totals?: boolean
           needs_review?: boolean
+          normalized_name?: string | null
           price: number
           quantity?: number
           raw_text: string
@@ -317,10 +400,12 @@ export type Database = {
         }
         Update: {
           category_id?: string | null
+          confidence?: number | null
           created_at?: string
           id?: string
           included_in_totals?: boolean
           needs_review?: boolean
+          normalized_name?: string | null
           price?: number
           quantity?: number
           raw_text?: string
@@ -356,6 +441,7 @@ export type Database = {
           raw_ocr_text: string | null
           receipt_date: string
           settlement_id: string | null
+          store_chain: string | null
           store_name: string | null
           total_amount: number
         }
@@ -370,6 +456,7 @@ export type Database = {
           raw_ocr_text?: string | null
           receipt_date?: string
           settlement_id?: string | null
+          store_chain?: string | null
           store_name?: string | null
           total_amount: number
         }
@@ -384,6 +471,7 @@ export type Database = {
           raw_ocr_text?: string | null
           receipt_date?: string
           settlement_id?: string | null
+          store_chain?: string | null
           store_name?: string | null
           total_amount?: number
         }
@@ -454,6 +542,7 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          household_id: string | null
           id: string
           name: string
           status: string
@@ -463,6 +552,7 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          household_id?: string | null
           id?: string
           name: string
           status?: string
@@ -472,13 +562,22 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          household_id?: string | null
           id?: string
           name?: string
           status?: string
           type?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "settlements_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       shopping_list_items: {
         Row: {
@@ -579,9 +678,31 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      item_price_stats: {
+        Row: {
+          household_id: string | null
+          last_seen: string | null
+          median_unit_price: number | null
+          normalized_name: string | null
+          sample_count: number | null
+          store_chain: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receipts_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
+      clear_invite_expiry: {
+        Args: { _household_id: string }
+        Returns: undefined
+      }
       get_user_household_ids: { Args: { _user_id: string }; Returns: string[] }
       is_household_member: {
         Args: { _household_id: string; _user_id: string }
@@ -591,8 +712,13 @@ export type Database = {
         Args: { _invite_token: string }
         Returns: Json
       }
+      normalize_item_name: { Args: { raw: string }; Returns: string }
       regenerate_invite_token: {
         Args: { _household_id: string }
+        Returns: string
+      }
+      set_invite_expiry: {
+        Args: { _days?: number; _household_id: string }
         Returns: string
       }
     }
@@ -723,6 +849,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {},
   },

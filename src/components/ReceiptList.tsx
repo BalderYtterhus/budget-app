@@ -79,7 +79,7 @@ export function ReceiptList() {
     const q = search.trim().toLowerCase();
     if (!q) return receipts;
     return receipts.filter(r => {
-      const label = (r as unknown as { label?: string }).label?.toLowerCase() ?? "";
+      const label = r.label?.toLowerCase() ?? "";
       return (
         (r.store_name?.toLowerCase().includes(q)) ||
         label.includes(q)
@@ -96,7 +96,7 @@ export function ReceiptList() {
     setEditStoreChain(receipt.store_chain || "");
     setEditDate(receipt.receipt_date?.split("T")[0] || "");
     setEditTotal(String(Number(receipt.total_amount)));
-    setEditLabel((receipt as unknown as { label?: string }).label || "");
+    setEditLabel(receipt.label || "");
     setEditMode(true);
   };
 
@@ -200,10 +200,10 @@ export function ReceiptList() {
                         {!receipt.paid_by_user && (
                           <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />
                         )}
-                        {(receipt as unknown as { label?: string }).label && (
+                        {receipt.label && (
                           <Badge variant="secondary" className="text-xs h-5 gap-1 shrink-0">
                             <Tag className="h-2.5 w-2.5" />
-                            {(receipt as unknown as { label?: string }).label}
+                            {receipt.label}
                           </Badge>
                         )}
                       </div>
@@ -347,10 +347,10 @@ export function ReceiptList() {
                         <span>Sett kjede for prisdeling</span>
                       </button>
                     )}
-                    {(currentReceipt as unknown as { label?: string }).label && (
+                    {currentReceipt.label && (
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Tag className="h-3 w-3" />
-                        <span>{(currentReceipt as unknown as { label?: string }).label}</span>
+                        <span>{currentReceipt.label}</span>
                       </div>
                     )}
                   </div>

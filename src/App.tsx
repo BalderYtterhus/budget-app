@@ -11,6 +11,10 @@ import { SettlementProvider } from "@/contexts/SettlementContext";
 import { RequireAuth } from "@/components/RequireAuth";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import Index from "./pages/Index";
+import Receipts from "./pages/Receipts";
+import Oppgjor from "./pages/Oppgjor";
+import Categories from "./pages/Categories";
+import Reports from "./pages/Reports";
 import Auth from "./pages/Auth";
 import Install from "./pages/Install";
 import JoinHousehold from "./pages/JoinHousehold";
@@ -48,7 +52,16 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/install" element={<Install />} />
               <Route path="/join" element={<JoinHousehold />} />
-              {["/", "/kvitteringer", "/oppgjor", "/kategorier", "/rapporter"].map(path => (
+              {/* Each sidebar route now renders its own page. They previously all
+                  pointed at <Index />, so the nav changed the URL and the active
+                  highlight while the content stayed identical. */}
+              {([
+                ["/", Index],
+                ["/kvitteringer", Receipts],
+                ["/oppgjor", Oppgjor],
+                ["/kategorier", Categories],
+                ["/rapporter", Reports],
+              ] as const).map(([path, Page]) => (
                 <Route
                   key={path}
                   path={path}
@@ -56,7 +69,7 @@ const App = () => (
                     <RequireAuth>
                       <HouseholdProvider>
                         <SettlementProvider>
-                          <Index />
+                          <Page />
                         </SettlementProvider>
                       </HouseholdProvider>
                     </RequireAuth>

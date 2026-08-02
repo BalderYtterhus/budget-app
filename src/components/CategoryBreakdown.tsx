@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { QueryErrorState } from "@/components/QueryErrorState";
 import { BudgetProgress } from "./BudgetProgress";
 import { useSpendingSummary } from "@/hooks/useBudgetData";
 import { PieChart } from "lucide-react";
@@ -15,7 +16,7 @@ const colorClassMap: Record<string, string> = {
 };
 
 export function CategoryBreakdown() {
-  const { data: summary, isLoading } = useSpendingSummary();
+  const { data: summary, isLoading, isError, error, refetch } = useSpendingSummary();
 
   if (isLoading) {
     return (
@@ -30,6 +31,19 @@ export function CategoryBreakdown() {
               <div className="h-2 bg-muted rounded w-full" />
             </div>
           ))}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card className="shadow-card">
+        <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2">
+          <CardTitle className="text-base sm:text-lg font-display">Forbruk per kategori</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <QueryErrorState what="forbruket" error={error} onRetry={() => refetch()} />
         </CardContent>
       </Card>
     );

@@ -37,9 +37,10 @@ import { formatNOK } from "@/lib/format";
 import { Label } from "@/components/ui/label";
 import { ReceiptItemEditor } from "@/components/ReceiptItemEditor";
 import { ReceiptImage } from "@/components/ReceiptImage";
+import { QueryErrorState } from "@/components/QueryErrorState";
 
 export function ReceiptList() {
-  const { data: receipts, isLoading } = useMonthlyReceipts();
+  const { data: receipts, isLoading, isError, error, refetch } = useMonthlyReceipts();
   const { data: categories } = useCategories();
   const { members } = useHousehold();
   const deleteReceipt = useDeleteReceipt();
@@ -169,7 +170,9 @@ export function ReceiptList() {
           )}
         </CardHeader>
         <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
-          {!receipts || receipts.length === 0 ? (
+          {isError ? (
+            <QueryErrorState what="kvitteringene" error={error} onRetry={() => refetch()} />
+          ) : !receipts || receipts.length === 0 ? (
             <div className="text-center py-6 sm:py-8">
               <Receipt className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-muted-foreground/50" />
               <p className="text-sm text-muted-foreground mt-2">

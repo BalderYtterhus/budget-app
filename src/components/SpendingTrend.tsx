@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import { Loader2, TrendingUp } from "lucide-react";
 import { formatNOK } from "@/lib/format";
+import { QueryErrorState } from "@/components/QueryErrorState";
 
 const CATEGORY_COLORS: Record<string, string> = {
   "Meieri": "#60a5fa",
@@ -134,7 +135,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export function SpendingTrend() {
-  const { data, isLoading } = useMonthlyTrend(6);
+  const { data, isLoading, isError, error, refetch } = useMonthlyTrend(6);
 
   return (
     <Card className="shadow-card">
@@ -149,6 +150,8 @@ export function SpendingTrend() {
           <div className="flex items-center justify-center h-48">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
+        ) : isError ? (
+          <QueryErrorState what="forbrukstrenden" error={error} onRetry={() => refetch()} />
         ) : !data || data.chartData.every(row =>
           data.categories.every(cat => !(row as any)[cat])
         ) ? (

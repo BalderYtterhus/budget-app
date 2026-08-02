@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
@@ -18,7 +18,21 @@ import StoreComparison from "./pages/StoreComparison";
 import PrisDatabase from "./pages/PrisDatabase";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+// Failed queries used to resolve to undefined and render as an ordinary empty
+// state, which is how a PostgREST embed error and an RLS-hidden settlements
+// table both went unnoticed for a full day — a broken receipt list is visually
+// identical to a month with no receipts. Log every failure with its query key
+// so the cause is visible in the console instead of silently swallowed.
+const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      console.error(
+        `[query failed] ${JSON.stringify(query.queryKey)}`,
+        error instanceof Error ? error.message : error,
+      );
+    },
+  }),
+});
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem>

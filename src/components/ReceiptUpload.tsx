@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Upload, Camera, Loader2, CheckCircle, X, Image, AlertCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { normalizeForMatch, calculateSimilarity } from "@/lib/textMatch";
 import { supabase } from "@/integrations/supabase/client";
 import { ParsedReceipt } from "@/types/budget";
 import { useSaveReceipt, useCategories, useItemMappings } from "@/hooks/useBudgetData";
@@ -79,21 +80,35 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
     }
   }, [startManual]);
 
-  // Client-side fallback categorization using learned mappings
+  // Client-side fallback categorization using learned mappings (fuzzy match,
+  // since receipt OCR text rarely matches a learned pattern exactly).
+  const FUZZY_MATCH_THRESHOLD = 0.6;
+
   const findCategoryForItem = useCallback(
     (itemText: string): { categoryId: string | null; needsReview: boolean } => {
       if (!mappings || !categories || categories.length === 0) {
         return { categoryId: null, needsReview: true };
       }
-      
-      const lowerText = itemText.toLowerCase();
-      
-      // Check learned mappings first (highest priority)
-      const exactMatch = mappings.find(
-        (m) => lowerText.includes(m.item_pattern.toLowerCase())
-      );
-      if (exactMatch) {
-        return { categoryId: exactMatch.category_id, needsReview: false };
+
+      const normText = normalizeForMatch(itemText);
+
+      // mappings is already ordered by frequency desc, so among equal-scoring
+      // matches the more frequently confirmed one wins.
+      let best: { categoryId: string; score: number } | null = null;
+      for (const m of mappings) {
+        const normPattern = normalizeForMatch(m.item_pattern);
+        let score: number;
+        if (normText === normPattern) score = 1;
+        else if (normText.includes(normPattern) || normPattern.includes(normText)) score = 0.9;
+        else score = calculateSimilarity(normText, normPattern);
+
+        if (score >= FUZZY_MATCH_THRESHOLD && (!best || score > best.score)) {
+          best = { categoryId: m.category_id, score };
+        }
+      }
+
+      if (best) {
+        return { categoryId: best.categoryId, needsReview: false };
       }
 
       // No match found - needs review

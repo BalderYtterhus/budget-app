@@ -53,7 +53,7 @@ function useMonthlyTrend(monthsBack = 6) {
           items:receipt_items (
             price,
             included_in_totals,
-            category:categories ( name )
+            category:categories!receipt_items_category_id_fkey ( name )
           )
         `)
         .eq("household_id", household!.id)

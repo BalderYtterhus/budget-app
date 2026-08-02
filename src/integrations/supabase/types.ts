@@ -371,6 +371,7 @@ export type Database = {
       }
       receipt_items: {
         Row: {
+          ai_predicted_category_id: string | null
           category_id: string | null
           confidence: number | null
           created_at: string
@@ -382,9 +383,11 @@ export type Database = {
           quantity: number
           raw_text: string
           receipt_id: string
+          reviewed_at: string | null
           unit_price: number | null
         }
         Insert: {
+          ai_predicted_category_id?: string | null
           category_id?: string | null
           confidence?: number | null
           created_at?: string
@@ -396,9 +399,11 @@ export type Database = {
           quantity?: number
           raw_text: string
           receipt_id: string
+          reviewed_at?: string | null
           unit_price?: number | null
         }
         Update: {
+          ai_predicted_category_id?: string | null
           category_id?: string | null
           confidence?: number | null
           created_at?: string
@@ -410,9 +415,17 @@ export type Database = {
           quantity?: number
           raw_text?: string
           receipt_id?: string
+          reviewed_at?: string | null
           unit_price?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "receipt_items_ai_predicted_category_id_fkey"
+            columns: ["ai_predicted_category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "receipt_items_category_id_fkey"
             columns: ["category_id"]

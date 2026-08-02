@@ -11,98 +11,120 @@ import { ShoppingList } from "@/components/ShoppingList";
 import { SpendingTrend } from "@/components/SpendingTrend";
 import { CategoryReviewButton } from "@/components/CategoryReview";
 import { SettlementOversikt } from "@/components/SettlementOversikt";
-import { SettlementSwitcher } from "@/components/SettlementSwitcher";
 import { ConsentModal } from "@/components/ConsentModal";
+import { AppSidebar } from "@/components/AppSidebar";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Button } from "@/components/ui/button";
-import { ShoppingCart, Download, Camera, ChevronDown, BarChart2, Pencil } from "lucide-react";
+import { Camera, Pencil, Search, ChevronDown, BarChart2, Plus } from "lucide-react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { Loader2 } from "lucide-react";
-import { Link } from "react-router-dom";
-import { useEffect } from "react";
+import { useMonth } from "@/contexts/MonthContext";
 import { cn } from "@/lib/utils";
 
 const Index = () => {
   const { household, loading } = useHousehold();
-  const [showInstallLink, setShowInstallLink] = useState(false);
+  const { selectedMonth, selectedYear } = useMonth();
+  const monthLabel = new Date(selectedYear, selectedMonth - 1).toLocaleString("nb-NO", { month: "long", year: "numeric" });
   const [showTrend, setShowTrend] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [manualMode, setManualMode] = useState(false);
 
-  useEffect(() => {
-    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-    setShowInstallLink(!isStandalone);
-  }, []);
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className="h-8 w-8 animate-spin text-brand" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card/95 backdrop-blur-sm sticky top-0 z-20">
-        <div className="container max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <div className="p-1.5 sm:p-2 rounded-lg bg-primary/10 shrink-0">
-                <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-lg sm:text-xl font-display font-bold truncate">BudgetBandz</h1>
-                <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                  <SettlementSwitcher />
-                </p>
-              </div>
+    <div className="flex min-h-screen bg-background">
+      {/* Sidebar — hidden on mobile */}
+      <div className="hidden lg:block">
+        <AppSidebar />
+      </div>
+
+      {/* Main content */}
+      <main className="flex-1 min-w-0 flex flex-col">
+
+        {/* Top bar */}
+        <div className="flex items-end justify-between gap-4 px-6 pt-5 pb-4 border-b border-border bg-card lg:bg-transparent lg:border-b-0">
+          {/* Left: kicker + title — hidden on mobile replaced by brand */}
+          <div className="hidden lg:block">
+            <p className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground">
+              {household?.name || "Husholdning"} · {monthLabel}
+            </p>
+            <h1 className="text-[26px] font-semibold tracking-tight mt-1">Oversikt</h1>
+          </div>
+
+          {/* Mobile brand */}
+          <div className="flex items-center gap-2 lg:hidden">
+            <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center text-white font-semibold text-sm">
+              B
             </div>
-            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-              <MonthSelector />
+            <span className="font-semibold text-sm">BudgetBandz</span>
+          </div>
+
+          {/* Right: search + actions */}
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {/* Search — desktop only */}
+            <div className="hidden md:flex items-center gap-2 bg-card border border-border rounded-[10px] px-2.5 py-1.5 text-muted-foreground min-w-[200px]">
+              <Search className="w-3.5 h-3.5 flex-shrink-0" />
+              <input
+                placeholder="Søk i kvitteringer…"
+                className="border-none bg-transparent outline-none text-[13px] flex-1 text-foreground placeholder:text-muted-foreground"
+              />
+              <kbd className="text-[10.5px] bg-muted px-1 py-0.5 rounded text-muted-foreground">⌘K</kbd>
+            </div>
+
+            {/* Month picker */}
+            <MonthSelector />
+
+            {/* Desktop actions */}
+            <div className="hidden sm:flex items-center gap-2">
               <CategoryReviewButton />
-              <div className="hidden sm:flex items-center gap-1">
-                <ExportData />
-              </div>
+              <ExportData />
               <BudgetSettings />
-              <UserMenu />
             </div>
+
+            <UserMenu />
           </div>
         </div>
-      </header>
 
-      <main className="container max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        <div className="space-y-4 sm:space-y-5">
+        {/* Page content */}
+        <div className="flex-1 px-4 sm:px-6 py-4 sm:py-5 space-y-4">
 
-          {/* 1. Spending overview cards */}
-          <section className="animate-fade-in">
+          {/* KPI strip — spending overview */}
+          <section>
             <SpendingOverview />
           </section>
 
-          {/* 2. Add receipt — prominent CTA */}
-          <section className="animate-fade-in" style={{ animationDelay: "50ms" }}>
+          {/* Add receipt CTA */}
+          <section>
             <div className="flex gap-2">
               <button
                 onClick={() => { setManualMode(false); setUploadOpen(true); }}
-                className="flex-1 flex items-center gap-4 p-4 rounded-xl border-2 border-dashed border-primary/25 bg-primary/5 hover:bg-primary/10 hover:border-primary/40 active:scale-[0.99] transition-all group text-left"
+                className="flex-1 flex items-center gap-4 p-4 rounded-xl border-2 border-dashed border-brand/25 bg-brand/5 hover:bg-brand/10 hover:border-brand/40 active:scale-[0.99] transition-all group text-left"
               >
-                <div className="p-3 rounded-xl bg-primary/10 group-hover:bg-primary/20 transition-colors shrink-0">
-                  <Camera className="h-5 w-5 text-primary" />
+                <div className="p-2.5 rounded-xl bg-brand/10 group-hover:bg-brand/20 transition-colors flex-shrink-0">
+                  <Camera className="h-5 w-5 text-brand" />
                 </div>
                 <div>
-                  <p className="font-semibold text-sm sm:text-base">Legg til kvittering</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Skann eller last opp bilde</p>
+                  <p className="font-semibold text-sm">Legg til kvittering</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Skann eller last opp bilde — vi fyller ut resten</p>
                 </div>
+                <div className="flex-1" />
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 bg-primary text-primary-foreground rounded-lg text-[13px] font-medium">
+                  Skann
+                </span>
               </button>
               <button
                 onClick={() => { setManualMode(true); setUploadOpen(true); }}
-                className="flex flex-col items-center justify-center gap-1.5 px-4 py-3 rounded-xl border border-border bg-card hover:bg-accent active:scale-[0.99] transition-all text-muted-foreground hover:text-foreground shrink-0"
+                className="flex flex-col items-center justify-center gap-1.5 px-4 py-3 rounded-xl border border-border bg-card hover:bg-accent active:scale-[0.99] transition-all text-muted-foreground hover:text-foreground flex-shrink-0"
               >
                 <Pencil className="h-4 w-4" />
                 <span className="text-xs font-medium whitespace-nowrap">Manuelt</span>
@@ -110,78 +132,60 @@ const Index = () => {
             </div>
           </section>
 
-          {/* 3. Settlement oversikt */}
-          <section className="animate-fade-in" style={{ animationDelay: "100ms" }}>
+          {/* Settlement overview */}
+          <section>
             <SettlementOversikt />
           </section>
 
-          {/* 4. Spending trend — toggle */}
-          <section className="animate-fade-in" style={{ animationDelay: "125ms" }}>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-between text-muted-foreground hover:text-foreground h-9"
+          {/* Spending trend — collapsible */}
+          <section>
+            <button
+              className="w-full flex items-center justify-between px-0 py-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
               onClick={() => setShowTrend(v => !v)}
             >
-              <span className="flex items-center gap-1.5">
-                <BarChart2 className="h-4 w-4" />
+              <span className="flex items-center gap-1.5 font-medium">
+                <BarChart2 className="h-3.5 w-3.5" />
                 Forbrukstrend siste 6 måneder
               </span>
-              <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", showTrend && "rotate-180")} />
-            </Button>
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", showTrend && "rotate-180")} />
+            </button>
             {showTrend && (
-              <div className="mt-2">
+              <div className="mt-3 bg-card border border-border rounded-xl p-4">
                 <SpendingTrend />
               </div>
             )}
           </section>
 
-          {/* 5. Main grid: receipts + shopping + categories */}
-          <div className="grid gap-4 sm:gap-5 lg:grid-cols-2 animate-fade-in" style={{ animationDelay: "150ms" }}>
-            {/* Left: receipts */}
-            <div className="space-y-4 sm:space-y-5">
+          {/* Main content grid */}
+          <div className="grid gap-4 lg:grid-cols-3">
+            {/* Receipts — span 2 */}
+            <div className="lg:col-span-2">
               <ReceiptList />
             </div>
 
-            {/* Right: shopping list + categories */}
-            <div className="space-y-4 sm:space-y-5">
+            {/* Right column: shopping + categories */}
+            <div className="space-y-4">
               <ShoppingList />
               <CategoryBreakdown />
             </div>
           </div>
 
+          {/* Mobile-only: extra actions row */}
+          <div className="flex items-center gap-2 sm:hidden pt-1">
+            <CategoryReviewButton />
+            <ExportData />
+            <BudgetSettings />
+          </div>
+
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="border-t mt-8 sm:mt-12">
-        <div className="container max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-4">
-            <p className="text-xs text-muted-foreground text-center">
-              Spor matforbruket ditt · Drevet av AI-kvitteringsscanning
-            </p>
-            <div className="flex items-center gap-3 sm:hidden">
-              <ExportData />
-            </div>
-            {showInstallLink && (
-              <Link
-                to="/install"
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <Download className="w-3 h-3" />
-                Installer app
-              </Link>
-            )}
-          </div>
-        </div>
-      </footer>
 
       <ConsentModal />
 
       {/* Receipt upload sheet */}
       <Sheet open={uploadOpen} onOpenChange={(open) => { setUploadOpen(open); if (!open) setManualMode(false); }}>
         <SheetContent side="bottom" className="h-[92dvh] flex flex-col p-0 rounded-t-2xl sm:max-w-2xl sm:mx-auto">
-          <SheetHeader className="px-4 pt-4 pb-2 border-b shrink-0">
+          <SheetHeader className="px-4 pt-4 pb-2 border-b flex-shrink-0">
             <SheetTitle className="flex items-center gap-2">
               {manualMode ? <Pencil className="h-4 w-4" /> : <Camera className="h-4 w-4" />}
               {manualMode ? "Skriv inn kvittering" : "Legg til kvittering"}

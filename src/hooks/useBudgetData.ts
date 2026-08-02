@@ -503,6 +503,7 @@ export function useSaveReceipt() {
         confidence?: number;
         aiPredictedCategoryId?: string | null;
         userReviewed?: boolean;
+        systemConfidence?: number;
       }[];
     }) => {
       if (!household) throw new Error("No household selected");
@@ -543,6 +544,7 @@ export function useSaveReceipt() {
               confidence: item.confidence ?? null,
               ai_predicted_category_id: item.aiPredictedCategoryId ?? null,
               reviewed_at: item.userReviewed ? new Date().toISOString() : null,
+              system_confidence: item.systemConfidence ?? null,
             }))
           );
 

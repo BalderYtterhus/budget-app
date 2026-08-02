@@ -555,26 +555,45 @@ export function useSaveReceipt() {
           }
         }
 
-        // Auto-learn mappings for items that were categorized (not needing review)
+        // Auto-learn mappings for items that were categorized (not needing review).
+        // Fetch-then-increment rather than upsert, so frequency accumulates across
+        // receipts instead of resetting to 1 every time (mirrors useUpdateItemCategory).
         const categorizedItems = items.filter(item => item.categoryId && !item.needsReview);
         for (const item of categorizedItems) {
           const pattern = item.rawText.toLowerCase().trim();
-          // Try to upsert, but don't fail if it doesn't work
-          await supabase
+
+          const { data: existingMapping } = await supabase
             .from("item_category_mappings")
-            .upsert(
-              {
+            .select("id, frequency")
+            .eq("item_pattern", pattern)
+            .eq("household_id", household.id)
+            .maybeSingle();
+
+          if (existingMapping) {
+            await supabase
+              .from("item_category_mappings")
+              .update({
+                category_id: item.categoryId!,
+                frequency: existingMapping.frequency + 1,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", existingMapping.id)
+              .then(({ error }) => {
+                if (error) console.error("Failed to update auto-mapping:", error);
+              });
+          } else {
+            await supabase
+              .from("item_category_mappings")
+              .insert({
                 item_pattern: pattern,
                 category_id: item.categoryId!,
                 frequency: 1,
                 household_id: household.id,
-              },
-              { 
-                onConflict: "item_pattern,household_id",
-              }
-            ).then(({ error }) => {
-              if (error) console.error("Failed to save auto-mapping:", error);
-            });
+              })
+              .then(({ error }) => {
+                if (error) console.error("Failed to save auto-mapping:", error);
+              });
+          }
         }
       }
 

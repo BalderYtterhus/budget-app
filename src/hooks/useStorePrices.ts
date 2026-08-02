@@ -2,27 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { ShoppingListItem } from "@/types/budget";
-
-// Normalize for client-side fuzzy matching only
-function normalizeForMatch(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/\d+([.,]\d+)?\s*(g|kg|ml|l|cl|dl|pk|stk|liter)\s*/gi, "")
-    .replace(/[^\w\s]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function calculateSimilarity(a: string, b: string): number {
-  const wordsA = new Set(normalizeForMatch(a).split(" ").filter(Boolean));
-  const wordsB = new Set(normalizeForMatch(b).split(" ").filter(Boolean));
-  let matches = 0;
-  for (const word of wordsA) {
-    if (wordsB.has(word)) matches++;
-  }
-  const maxLen = Math.max(wordsA.size, wordsB.size);
-  return maxLen > 0 ? matches / maxLen : 0;
-}
+import { normalizeForMatch, calculateSimilarity } from "@/lib/textMatch";
 
 function itemsMatch(shoppingItem: string, normalizedName: string): boolean {
   const normShopping = normalizeForMatch(shoppingItem);

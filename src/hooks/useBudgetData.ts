@@ -486,6 +486,8 @@ export function useSaveReceipt() {
         categoryId: string | null;
         needsReview?: boolean;
         confidence?: number;
+        aiPredictedCategoryId?: string | null;
+        userReviewed?: boolean;
       }[];
     }) => {
       if (!household) throw new Error("No household selected");
@@ -524,6 +526,8 @@ export function useSaveReceipt() {
               category_id: item.categoryId,
               needs_review: item.needsReview ?? false,
               confidence: item.confidence ?? null,
+              ai_predicted_category_id: item.aiPredictedCategoryId ?? null,
+              reviewed_at: item.userReviewed ? new Date().toISOString() : null,
             }))
           );
 
@@ -623,10 +627,15 @@ export function useUpdateItemCategory() {
       categoryId: string;
       itemText: string;
     }) => {
-      // Update the item and clear needs_review flag
+      // Update the item, clear needs_review, and stamp the human review so
+      // accuracy metrics have a real denominator (see reviewed_at migration).
       const { error: itemError } = await supabase
         .from("receipt_items")
-        .update({ category_id: categoryId, needs_review: false })
+        .update({
+          category_id: categoryId,
+          needs_review: false,
+          reviewed_at: new Date().toISOString(),
+        })
         .eq("id", itemId);
 
       if (itemError) throw itemError;
@@ -881,9 +890,15 @@ export function useUpdateReceiptItem() {
         needs_review?: boolean;
       };
     }) => {
+      // A category edit here is a human review — stamp it so eval can count it.
+      const patch =
+        updates.category_id !== undefined
+          ? { ...updates, reviewed_at: new Date().toISOString() }
+          : updates;
+
       const { error } = await supabase
         .from("receipt_items")
-        .update(updates)
+        .update(patch)
         .eq("id", itemId);
 
       if (error) throw error;

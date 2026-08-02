@@ -34,6 +34,12 @@ interface ReviewItem {
   categoryId: string | null;
   needsReview: boolean;
   confidence: number;
+  // The AI's own category call, kept separate from categoryId so later edits
+  // (mapping fallback, user correction) don't erase what the model predicted.
+  aiPredictedCategoryId: string | null;
+  // Set when the user changes the category in the review step — the main
+  // source of human-verified labels, since most corrections happen pre-save.
+  userReviewed: boolean;
 }
 
 export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => void; startManual?: boolean } = {}) {
@@ -192,6 +198,22 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
 
       if (ocrError) throw ocrError;
 
+      // OCR returned, but the model's output may still be unusable or
+      // internally inconsistent. Warn rather than fail — manual entry from here
+      // is still better than making the user start over.
+      if (ocrData.parseError) {
+        toast({
+          title: "Kunne ikke lese kvitteringen automatisk",
+          description: "Fyll inn detaljene manuelt nedenfor.",
+          variant: "destructive",
+        });
+      } else if (ocrData.totalMismatch) {
+        toast({
+          title: "Sjekk totalbeløpet",
+          description: `Varene summerer til ${formatNOK(ocrData.totalMismatch.itemSum)}, men totalen på kvitteringen er ${formatNOK(ocrData.totalMismatch.stated)}. Noen varer kan mangle.`,
+        });
+      }
+
       setParsedData(ocrData);
       setStoreName(ocrData.storeName || "");
       setStoreChain(ocrData.storeChain || null);
@@ -224,6 +246,8 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
               categoryId: item.categoryId,
               needsReview: item.needsReview || false,
               confidence,
+              aiPredictedCategoryId: item.categoryId,
+              userReviewed: false,
             };
           }
           // Otherwise, try client-side categorization
@@ -237,6 +261,10 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
             categoryId: fallback.categoryId,
             needsReview: fallback.needsReview,
             confidence,
+            // AI abstained — recorded as null so eval can separate
+            // "model got it wrong" from "model declined to guess".
+            aiPredictedCategoryId: null,
+            userReviewed: false,
           };
         }
       );
@@ -281,7 +309,7 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
   const updateItemCategory = (index: number, categoryId: string) => {
     setReviewItems((prev) =>
       prev.map((item, i) =>
-        i === index ? { ...item, categoryId, needsReview: false } : item
+        i === index ? { ...item, categoryId, needsReview: false, userReviewed: true } : item
       )
     );
   };
@@ -308,7 +336,7 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
   const addManualItem = () => {
     setReviewItems((prev) => [
       ...prev,
-      { rawText: "", normalizedName: "", price: 0, quantity: 1, unitPrice: null, categoryId: null, needsReview: true, confidence: 0 },
+      { rawText: "", normalizedName: "", price: 0, quantity: 1, unitPrice: null, categoryId: null, needsReview: true, confidence: 0, aiPredictedCategoryId: null, userReviewed: true },
     ]);
   };
 
@@ -341,6 +369,9 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
         unitPrice: item.unitPrice,
         categoryId: item.categoryId,
         needsReview: item.needsReview,
+        confidence: item.confidence,
+        aiPredictedCategoryId: item.aiPredictedCategoryId,
+        userReviewed: item.userReviewed,
       }));
 
       await saveReceipt.mutateAsync({

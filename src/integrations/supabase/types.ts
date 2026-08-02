@@ -384,6 +384,7 @@ export type Database = {
           raw_text: string
           receipt_id: string
           reviewed_at: string | null
+          system_confidence: number | null
           unit_price: number | null
         }
         Insert: {
@@ -400,6 +401,7 @@ export type Database = {
           raw_text: string
           receipt_id: string
           reviewed_at?: string | null
+          system_confidence?: number | null
           unit_price?: number | null
         }
         Update: {
@@ -416,6 +418,7 @@ export type Database = {
           raw_text?: string
           receipt_id?: string
           reviewed_at?: string | null
+          system_confidence?: number | null
           unit_price?: number | null
         }
         Relationships: [

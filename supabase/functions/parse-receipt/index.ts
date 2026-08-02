@@ -167,6 +167,8 @@ REGLER:
         storeChain: extractStoreChain(parsedStoreName),
         totalAmount: parseFloat(jsonData.totalAmount) || 0,
         date: jsonData.date || null,
+        parseError: null as string | null,
+        totalMismatch: null as { itemSum: number; stated: number } | null,
         items: (jsonData.items || []).map((item: any) => {
           const categoryId = item.categoryId && validCategoryIds.has(item.categoryId)
             ? item.categoryId : null;
@@ -209,8 +211,38 @@ REGLER:
         }),
         rawText: content,
       };
-    } catch {
-      parsed = { storeName: null, storeChain: null, totalAmount: 0, date: null, items: [], rawText: content };
+
+      // Cross-check the stated total against the sum of extracted line items.
+      // A large gap means OCR missed items or misread prices — surface it so the
+      // user can correct before saving rather than silently banking a bad total.
+      const itemSum = parsed.items.reduce(
+        (sum: number, i: { price: number }) => sum + i.price,
+        0,
+      );
+      if (parsed.totalAmount > 0 && parsed.items.length > 0) {
+        const delta = Math.abs(itemSum - parsed.totalAmount);
+        if (delta > 0.05 * parsed.totalAmount + 1) {
+          parsed.totalMismatch = {
+            itemSum: Math.round(itemSum * 100) / 100,
+            stated: parsed.totalAmount,
+          };
+        }
+      }
+    } catch (parseErr: unknown) {
+      // The model returned something that isn't the JSON contract. Return an
+      // empty result the client can still use for manual entry, but flag it so
+      // a failed parse is distinguishable from a genuinely empty receipt.
+      console.error("Failed to parse model output as JSON:", parseErr, content?.slice(0, 500));
+      parsed = {
+        storeName: null,
+        storeChain: null,
+        totalAmount: 0,
+        date: null,
+        items: [],
+        rawText: content,
+        parseError: "Kunne ikke tolke svaret fra AI-en",
+        totalMismatch: null,
+      };
     }
 
     return new Response(JSON.stringify(parsed), {

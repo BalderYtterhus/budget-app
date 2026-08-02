@@ -18,15 +18,6 @@ import {
   Legend,
 } from "recharts";
 
-interface StatRow {
-  store_chain: string;
-  normalized_name: string;
-  category_name: string | null;
-  price: number;
-  unit_price: number | null;
-  receipt_date: string;
-}
-
 function useOverviewStats() {
   return useQuery({
     queryKey: ["price-db-overview"],
@@ -196,7 +187,7 @@ export default function PrisDatabase() {
                     tickFormatter={v => `${v},-`}
                   />
                   <Tooltip
-                    formatter={(v: number) => formatNOK(v)}
+                    formatter={(v) => formatNOK(Number(v))}
                     labelFormatter={l => `Måned: ${l}`}
                   />
                   <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} iconType="circle" iconSize={8} />

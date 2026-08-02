@@ -59,7 +59,7 @@ export function useKnownStores() {
 
       if (error) throw error;
 
-      const chains = [...new Set((data || []).map(r => r.store_chain).filter(Boolean))];
+      const chains = [...new Set((data || []).map(r => r.store_chain).filter((c): c is string => !!c))];
       if (chains.length > 0) return chains.sort();
 
       // Cold start: fall back to public_price_data for distinct chains
@@ -69,7 +69,7 @@ export function useKnownStores() {
         .not("store_chain", "is", null)
         .gte("receipt_date", ninetyDaysAgo.toISOString().split("T")[0]);
 
-      const pubChains = [...new Set((pub || []).map(r => r.store_chain).filter(Boolean))];
+      const pubChains = [...new Set((pub || []).map(r => r.store_chain).filter((c): c is string => !!c))];
       return pubChains.sort();
     },
     enabled: !!household,

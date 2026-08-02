@@ -12,6 +12,10 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "strict": true,
+    // Ambient types shipped with Vite: import.meta.env and the CSS/asset
+    // module declarations. Without these, client.ts and main.tsx error even
+    // though both work at runtime. Not a new dependency — vite is installed.
+    "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]

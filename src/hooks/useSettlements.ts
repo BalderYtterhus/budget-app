@@ -79,7 +79,9 @@ export function useCreateSettlement() {
         .insert(members);
 
       if (memberError) throw memberError;
-      return settlement;
+      // Same cast the read paths use: the DB stores type/status as text with
+      // CHECK constraints, so the union is guaranteed but not expressed.
+      return settlement as Settlement;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["settlements"] }),
   });

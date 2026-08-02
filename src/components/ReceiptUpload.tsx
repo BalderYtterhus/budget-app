@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Upload, Camera, Loader2, CheckCircle, X, Image, AlertCircle, Pencil, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { normalizeForMatch, calculateSimilarity } from "@/lib/textMatch";
+import { computeSystemConfidence, reconcileConfidence, type ConfidenceVerdict } from "@/lib/systemConfidence";
 import { supabase } from "@/integrations/supabase/client";
 import { ParsedReceipt } from "@/types/budget";
 import { useSaveReceipt, useCategories, useItemMappings } from "@/hooks/useBudgetData";
@@ -40,6 +41,13 @@ interface ReviewItem {
   // Set when the user changes the category in the review step — the main
   // source of human-verified labels, since most corrections happen pre-save.
   userReviewed: boolean;
+  // Independent score from correction history; 0.5 means no evidence.
+  systemConfidence: number;
+  // How the model's confidence and the history score reconcile.
+  verdict: ConfidenceVerdict;
+  // Which learned pattern produced the score, for explaining the flag.
+  historyPattern: string | null;
+  historyCategoryId: string | null;
 }
 
 export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => void; startManual?: boolean } = {}) {
@@ -237,6 +245,12 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
 
           // If AI provided category, use it
           if (item.categoryId) {
+            // Score the same assignment from correction history, then let the
+            // two signals decide reviewability together. This can flag an item
+            // the AI was confident about, which its own score never would.
+            const system = computeSystemConfidence(item.rawText, item.categoryId, mappings);
+            const { verdict, needsReview } = reconcileConfidence(confidence, system);
+
             return {
               rawText: item.rawText,
               normalizedName,
@@ -244,14 +258,22 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
               quantity,
               unitPrice,
               categoryId: item.categoryId,
-              needsReview: item.needsReview || false,
+              needsReview: item.needsReview || needsReview,
               confidence,
               aiPredictedCategoryId: item.categoryId,
               userReviewed: false,
+              systemConfidence: system.score,
+              verdict,
+              historyPattern: system.matchedPattern,
+              historyCategoryId: system.historyCategoryId,
             };
           }
           // Otherwise, try client-side categorization
           const fallback = findCategoryForItem(item.rawText);
+          // The fallback derives from the same mappings, so a cross-check here
+          // would just be the signal agreeing with itself. Record the evidence
+          // for eval, but leave reviewability to the fallback's own judgement.
+          const system = computeSystemConfidence(item.rawText, fallback.categoryId, mappings);
           return {
             rawText: item.rawText,
             normalizedName,
@@ -265,6 +287,10 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
             // "model got it wrong" from "model declined to guess".
             aiPredictedCategoryId: null,
             userReviewed: false,
+            systemConfidence: system.score,
+            verdict: "no_signal" as const,
+            historyPattern: system.matchedPattern,
+            historyCategoryId: system.historyCategoryId,
           };
         }
       );
@@ -309,7 +335,9 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
   const updateItemCategory = (index: number, categoryId: string) => {
     setReviewItems((prev) =>
       prev.map((item, i) =>
-        i === index ? { ...item, categoryId, needsReview: false, userReviewed: true } : item
+        i === index
+          ? { ...item, categoryId, needsReview: false, userReviewed: true, verdict: "no_signal" as ConfidenceVerdict, historyPattern: null }
+          : item
       )
     );
   };
@@ -336,7 +364,7 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
   const addManualItem = () => {
     setReviewItems((prev) => [
       ...prev,
-      { rawText: "", normalizedName: "", price: 0, quantity: 1, unitPrice: null, categoryId: null, needsReview: true, confidence: 0, aiPredictedCategoryId: null, userReviewed: true },
+      { rawText: "", normalizedName: "", price: 0, quantity: 1, unitPrice: null, categoryId: null, needsReview: true, confidence: 0, aiPredictedCategoryId: null, userReviewed: true, systemConfidence: 0.5, verdict: "no_signal", historyPattern: null, historyCategoryId: null },
     ]);
   };
 
@@ -372,6 +400,7 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
         confidence: item.confidence,
         aiPredictedCategoryId: item.aiPredictedCategoryId,
         userReviewed: item.userReviewed,
+        systemConfidence: item.systemConfidence,
       }));
 
       await saveReceipt.mutateAsync({
@@ -693,6 +722,15 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
                       </Button>
                     </div>
+                    {item.verdict === "ai_overconfident" && item.historyPattern && (
+                      <p className="text-xs text-warning flex items-start gap-1.5">
+                        <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                        <span>
+                          Du har tidligere kategorisert «{item.historyPattern}» annerledes.
+                          Sjekk at kategorien stemmer.
+                        </span>
+                      </p>
+                    )}
                     <div className="grid grid-cols-[70px_1fr_1fr] gap-2">
                       <Input
                         type="number"

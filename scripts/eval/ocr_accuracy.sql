@@ -127,3 +127,71 @@ SELECT
     / NULLIF(COUNT(*), 0)
   , 1)                                                              AS reviewed_pct
 FROM receipt_items;
+
+
+-- ============================================================
+-- 7. Does system confidence beat the model's own? (Phase 2)
+-- ============================================================
+-- The question this whole signal exists to answer. Compares how well each
+-- score separates correct from incorrect assignments on reviewed items.
+--
+-- Read it as: within each band, what fraction were actually right? A useful
+-- signal shows accuracy climbing steeply across its own bands. If
+-- system_confidence separates more sharply than confidence does, it is the
+-- better gate; if it doesn't, this signal isn't earning its complexity.
+WITH reviewed AS (
+  SELECT
+    (ai_predicted_category_id = category_id)                        AS was_correct,
+    confidence,
+    system_confidence
+  FROM receipt_items
+  WHERE reviewed_at IS NOT NULL
+    AND ai_predicted_category_id IS NOT NULL
+)
+SELECT
+  'ai_confidence'                                                   AS signal,
+  CASE WHEN confidence >= 0.7 THEN 'high' ELSE 'low' END            AS band,
+  COUNT(*)                                                          AS n,
+  ROUND(100.0 * COUNT(*) FILTER (WHERE was_correct) / NULLIF(COUNT(*), 0), 1) AS accuracy_pct
+FROM reviewed
+WHERE confidence IS NOT NULL
+GROUP BY 2
+
+UNION ALL
+
+SELECT
+  'system_confidence',
+  CASE
+    WHEN system_confidence > 0.65 THEN 'supports'
+    WHEN system_confidence < 0.35 THEN 'contradicts'
+    ELSE 'no_evidence'
+  END,
+  COUNT(*),
+  ROUND(100.0 * COUNT(*) FILTER (WHERE was_correct) / NULLIF(COUNT(*), 0), 1)
+FROM reviewed
+WHERE system_confidence IS NOT NULL
+GROUP BY 2
+ORDER BY signal, band;
+
+
+-- ============================================================
+-- 8. The confidently-wrong case (Phase 2's whole point)
+-- ============================================================
+-- Items the model was sure about but correction history contradicted. A
+-- confidence threshold alone can never surface these — if this returns rows
+-- that were in fact wrong, the cross-check is earning its keep.
+SELECT
+  ri.normalized_name,
+  ri.confidence                                                     AS ai_said,
+  ri.system_confidence                                              AS history_said,
+  predicted.name                                                    AS ai_category,
+  final.name                                                        AS final_category,
+  (ri.ai_predicted_category_id = ri.category_id)                    AS ai_was_right
+FROM receipt_items ri
+LEFT JOIN categories predicted ON predicted.id = ri.ai_predicted_category_id
+LEFT JOIN categories final     ON final.id     = ri.category_id
+WHERE ri.reviewed_at IS NOT NULL
+  AND ri.confidence >= 0.7
+  AND ri.system_confidence < 0.35
+ORDER BY ri.confidence DESC
+LIMIT 25;

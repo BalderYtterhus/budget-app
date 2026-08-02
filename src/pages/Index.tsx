@@ -18,8 +18,9 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetTrigger,
 } from "@/components/ui/sheet";
-import { Camera, Pencil, Search, ChevronDown, BarChart2, Plus } from "lucide-react";
+import { Camera, Pencil, Search, ChevronDown, BarChart2, Plus, Menu } from "lucide-react";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { Loader2 } from "lucide-react";
 import { useMonth } from "@/contexts/MonthContext";
@@ -31,6 +32,7 @@ const Index = () => {
   const monthLabel = new Date(selectedYear, selectedMonth - 1).toLocaleString("nb-NO", { month: "long", year: "numeric" });
   const [showTrend, setShowTrend] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const [manualMode, setManualMode] = useState(false);
 
   if (loading) {
@@ -52,7 +54,7 @@ const Index = () => {
       <main className="flex-1 min-w-0 flex flex-col">
 
         {/* Top bar */}
-        <div className="flex items-end justify-between gap-4 px-6 pt-5 pb-4 border-b border-border bg-card lg:bg-transparent lg:border-b-0">
+        <div className="flex items-center lg:items-end justify-between gap-2 sm:gap-4 px-4 sm:px-6 pt-4 lg:pt-5 pb-3 lg:pb-4 border-b border-border bg-card lg:bg-transparent lg:border-b-0">
           {/* Left: kicker + title — hidden on mobile replaced by brand */}
           <div className="hidden lg:block">
             <p className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground">
@@ -61,16 +63,33 @@ const Index = () => {
             <h1 className="text-[26px] font-semibold tracking-tight mt-1">Oversikt</h1>
           </div>
 
-          {/* Mobile brand */}
-          <div className="flex items-center gap-2 lg:hidden">
-            <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center text-white font-semibold text-sm">
+          {/* Mobile: menu + brand */}
+          <div className="flex items-center gap-2 lg:hidden min-w-0">
+            <Sheet open={navOpen} onOpenChange={setNavOpen}>
+              <SheetTrigger asChild>
+                <button
+                  aria-label="Åpne meny"
+                  className="w-9 h-9 -ml-1 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors flex-shrink-0"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+              </SheetTrigger>
+              <SheetContent side="left" className="p-0 w-[264px]">
+                <SheetHeader className="sr-only">
+                  <SheetTitle>Navigasjon</SheetTitle>
+                </SheetHeader>
+                <AppSidebar variant="drawer" onNavigate={() => setNavOpen(false)} />
+              </SheetContent>
+            </Sheet>
+            <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
               B
             </div>
-            <span className="font-semibold text-sm">BudgetBandz</span>
+            {/* Wordmark needs more room than 375px leaves once the month picker is in; the mark alone carries it */}
+            <span className="font-semibold text-sm truncate hidden sm:inline">BudgetBandz</span>
           </div>
 
           {/* Right: search + actions */}
-          <div className="flex items-center gap-2 flex-wrap justify-end">
+          <div className="flex items-center gap-2 justify-end min-w-0">
             {/* Search — desktop only */}
             <div className="hidden md:flex items-center gap-2 bg-card border border-border rounded-[10px] px-2.5 py-1.5 text-muted-foreground min-w-[200px]">
               <Search className="w-3.5 h-3.5 flex-shrink-0" />

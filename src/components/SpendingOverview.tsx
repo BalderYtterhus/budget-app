@@ -1,7 +1,7 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { BudgetProgress } from "./BudgetProgress";
 import { useSpendingSummary } from "@/hooks/useBudgetData";
-import { Wallet, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatNOK } from "@/lib/format";
 import { useMonth } from "@/contexts/MonthContext";

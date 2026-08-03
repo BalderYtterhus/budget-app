@@ -34,6 +34,7 @@ import { formatNOK } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { ShoppingListItem } from "@/types/budget";
 import { StoreComparison } from "@/components/StoreComparison";
+import { QueryErrorState } from "@/components/QueryErrorState";
 
 export function ShoppingList() {
   const [newItemName, setNewItemName] = useState("");
@@ -42,7 +43,7 @@ export function ShoppingList() {
   const [editName, setEditName] = useState("");
   const [editQuantity, setEditQuantity] = useState(1);
 
-  const { data: items = [], isLoading } = useShoppingList();
+  const { data: items = [], isLoading, isError, error, refetch } = useShoppingList();
   const { data: categories } = useCategories();
   const { data: priceEstimates } = useEstimatePrices(items);
 
@@ -116,6 +117,22 @@ export function ShoppingList() {
         </CardHeader>
         <CardContent className="flex items-center justify-center py-8">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <Card className="shadow-card">
+        <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2">
+          <CardTitle className="text-base sm:text-lg font-display flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            Handleliste
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <QueryErrorState what="handlelisten" error={error} onRetry={() => refetch()} />
         </CardContent>
       </Card>
     );

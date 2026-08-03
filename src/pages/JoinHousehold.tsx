@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,24 +19,14 @@ const JoinHousehold = () => {
 
   const inviteToken = searchParams.get("token");
 
-  useEffect(() => {
-    if (authLoading) return;
+  // Guards against joining more than once for the same token. StrictMode runs
+  // effects twice in dev, and the effect also re-fires whenever the user object
+  // changes identity (e.g. a token refresh). Without this the RPC runs again,
+  // returns already_member, and overwrites the success state — so a successful
+  // join reports "du er allerede medlem" instead.
+  const attemptedTokenRef = useRef<string | null>(null);
 
-    if (!inviteToken) {
-      setStatus("error");
-      setErrorMessage("Ugyldig invitasjonslenke");
-      return;
-    }
-
-    if (!user) {
-      setStatus("need_auth");
-      return;
-    }
-
-    joinHousehold();
-  }, [inviteToken, user, authLoading]);
-
-  const joinHousehold = async () => {
+  const joinHousehold = useCallback(async () => {
     if (!inviteToken) return;
 
     try {
@@ -71,7 +61,27 @@ const JoinHousehold = () => {
       setStatus("error");
       setErrorMessage("Noe gikk galt. Prøv igjen senere.");
     }
-  };
+  }, [inviteToken, toast]);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    if (!inviteToken) {
+      setStatus("error");
+      setErrorMessage("Ugyldig invitasjonslenke");
+      return;
+    }
+
+    if (!user) {
+      setStatus("need_auth");
+      return;
+    }
+
+    if (attemptedTokenRef.current === inviteToken) return;
+    attemptedTokenRef.current = inviteToken;
+
+    joinHousehold();
+  }, [inviteToken, user, authLoading, joinHousehold]);
 
   const handleGoToDashboard = () => {
     // Force a full page reload to refresh household context

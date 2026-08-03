@@ -297,7 +297,6 @@ export function useCurrentBudget() {
 }
 
 export function useMonthlyReceipts() {
-  const { household } = useHousehold();
   const { selectedMonth, selectedYear } = useMonth();
   const { activeSettlement } = useSettlementContext();
 
@@ -773,7 +772,7 @@ export function useCopyBudgetFromPreviousMonth() {
         const { error: catError } = await supabase
           .from("category_budgets")
           .upsert(
-            prevBudget.category_budgets.map((cb: any) => ({
+            prevBudget.category_budgets.map((cb: { category_id: string; amount: number }) => ({
               budget_id: newBudget.id,
               category_id: cb.category_id,
               amount: cb.amount,

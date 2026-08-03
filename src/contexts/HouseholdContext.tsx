@@ -6,7 +6,8 @@ interface Household {
   id: string;
   name: string;
   invite_token: string | null;
-  invite_enabled: boolean;
+  // Nullable in the database — the column has a default but no NOT NULL.
+  invite_enabled: boolean | null;
   invite_expires_at: string | null;
 }
 
@@ -14,10 +15,12 @@ interface HouseholdMember {
   id: string;
   user_id: string;
   role: string;
+  // The embedded select returns null (not undefined) when a profile row is
+  // missing, so the type has to admit null or the assignment fails.
   profile?: {
     display_name: string | null;
     email: string | null;
-  };
+  } | null;
 }
 
 interface HouseholdContextType {

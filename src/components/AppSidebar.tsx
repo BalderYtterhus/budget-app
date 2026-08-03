@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutGrid, Receipt, Users, Tag, TrendingUp, Settings, LogOut, Plus } from "lucide-react";
+import { LayoutGrid, Receipt, Users, Tag, TrendingUp, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useMonthlyReceipts, useSplitRatios } from "@/hooks/useBudgetData";
@@ -31,7 +31,14 @@ const MEMBER_COLORS = [
   "hsl(200 45% 50%)",
 ];
 
-export function AppSidebar() {
+interface AppSidebarProps {
+  /** Called when a nav link is followed — lets the mobile drawer close itself. */
+  onNavigate?: () => void;
+  /** Mobile renders inside a Sheet, which owns its own height and border. */
+  variant?: "fixed" | "drawer";
+}
+
+export function AppSidebar({ onNavigate, variant = "fixed" }: AppSidebarProps = {}) {
   const location = useLocation();
   const { household, members } = useHousehold();
   const { user } = useAuth();
@@ -64,7 +71,14 @@ export function AppSidebar() {
   const currentPath = location.pathname;
 
   return (
-    <aside className="w-sidebar flex-shrink-0 bg-card border-r border-border flex flex-col h-screen sticky top-0">
+    <aside
+      className={cn(
+        "bg-card flex flex-col",
+        variant === "fixed"
+          ? "w-sidebar flex-shrink-0 border-r border-border h-screen sticky top-0"
+          : "w-full h-full"
+      )}
+    >
       {/* Brand */}
       <div className="flex items-center gap-2.5 px-4 py-5">
         <div className="w-7 h-7 rounded-lg bg-brand flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
@@ -133,6 +147,7 @@ export function AppSidebar() {
             <Link
               key={href}
               to={href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-colors",
                 isActive

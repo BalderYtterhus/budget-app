@@ -84,7 +84,7 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
     if (user && !paidByUser) {
       setPaidByUser(user.id);
     }
-  }, [user]);
+  }, [user, paidByUser]);
 
   // Jump directly to manual entry when startManual is set
   useEffect(() => {
@@ -308,14 +308,19 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
     }
   };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  // Deliberately not memoised. processImage is recreated each render and closes
+  // over mappings/categories, which arrive asynchronously — a useCallback with
+  // empty deps froze the first render's copy, so dropped receipts were
+  // categorised against an empty mapping set and every item fell through to
+  // "needs review".
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragActive(false);
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith("image/")) {
       processImage(file);
     }
-  }, []);
+  };
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

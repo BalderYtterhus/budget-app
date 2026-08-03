@@ -86,10 +86,13 @@ export function BudgetSettings() {
         title: "Budsjett kopiert!",
         description: "Budsjettet fra forrige måned er kopiert.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Kunne ikke kopiere budsjett",
-        description: error.message || "Ingen budsjett funnet for forrige måned.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Ingen budsjett funnet for forrige måned.",
         variant: "destructive",
       });
     }

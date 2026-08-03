@@ -30,6 +30,9 @@ function getCategoryColor(name: string, index: number): string {
   return fallbacks[index % fallbacks.length];
 }
 
+/** One bar in the chart: a month label plus a numeric total per category. */
+type ChartRow = { month: string } & Record<string, string | number>;
+
 function norwegianMonth(isoMonth: string): string {
   const [, m] = isoMonth.split("-");
   const names = ["jan", "feb", "mar", "apr", "mai", "jun", "jul", "aug", "sep", "okt", "nov", "des"];
@@ -63,6 +66,14 @@ function useMonthlyTrend(monthsBack = 6) {
 
       if (error) throw error;
 
+      // Shape of the embedded select above; PostgREST returns the nested
+      // relation as an array and `category` as null when unset.
+      type TrendItem = {
+        price: number;
+        included_in_totals: boolean | null;
+        category: { name: string } | null;
+      };
+
       // Accumulate spending per month per category
       const monthly: Record<string, Record<string, number>> = {};
       const categoryNames = new Set<string>();
@@ -71,7 +82,7 @@ function useMonthlyTrend(monthsBack = 6) {
         const key = receipt.receipt_date.slice(0, 7); // "YYYY-MM"
         if (!monthly[key]) monthly[key] = {};
 
-        const items = (receipt.items as any[]) || [];
+        const items = (receipt.items ?? []) as TrendItem[];
         if (items.length === 0) {
           const cat = "Annet";
           monthly[key][cat] = (monthly[key][cat] || 0) + Number(receipt.total_amount);
@@ -95,7 +106,7 @@ function useMonthlyTrend(monthsBack = 6) {
         cursor.setMonth(cursor.getMonth() + 1);
       }
 
-      const chartData = months.map(m => ({
+      const chartData: ChartRow[] = months.map(m => ({
         month: norwegianMonth(m),
         ...Object.fromEntries(
           [...categoryNames].map(cat => [cat, Math.round((monthly[m]?.[cat] || 0))])
@@ -109,20 +120,34 @@ function useMonthlyTrend(monthsBack = 6) {
   });
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+interface TooltipEntry {
+  name?: string;
+  value?: number;
+  fill?: string;
+}
+
+const CustomTooltip = ({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: TooltipEntry[];
+  label?: string;
+}) => {
   if (!active || !payload?.length) return null;
-  const total = payload.reduce((s: number, p: any) => s + (p.value || 0), 0);
+  const total = payload.reduce((sum: number, p: TooltipEntry) => sum + (p.value ?? 0), 0);
   return (
     <div className="rounded-lg border bg-card shadow-md px-3 py-2 text-sm space-y-1">
       <p className="font-medium">{label}</p>
-      {payload.map((p: any) => (
-        p.value > 0 && (
+      {payload.map((p: TooltipEntry) => (
+        (p.value ?? 0) > 0 && (
           <div key={p.name} className="flex items-center justify-between gap-4">
             <span className="flex items-center gap-1.5 text-muted-foreground">
               <span className="inline-block h-2 w-2 rounded-full" style={{ background: p.fill }} />
               {p.name}
             </span>
-            <span className="font-mono">{formatNOK(p.value)}</span>
+            <span className="font-mono">{formatNOK(p.value ?? 0)}</span>
           </div>
         )
       ))}
@@ -153,7 +178,7 @@ export function SpendingTrend() {
         ) : isError ? (
           <QueryErrorState what="forbrukstrenden" error={error} onRetry={() => refetch()} />
         ) : !data || data.chartData.every(row =>
-          data.categories.every(cat => !(row as any)[cat])
+          data.categories.every(cat => !row[cat])
         ) ? (
           <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
             Ingen kvitteringer enda — last opp den første!

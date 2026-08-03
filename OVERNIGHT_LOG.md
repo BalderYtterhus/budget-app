@@ -1,7 +1,7 @@
 # Overnight work log — 2026-08-02 → 08-03
 
 Branch: `overnight-fixes` (off `main` @ `ea273ff`)
-Stopped at: lint cleanup, before any edits. **Working tree clean, nothing stashed.**
+**All ✅ items complete.** Three 🔴 decisions remain — see bottom.
 
 ---
 
@@ -15,17 +15,18 @@ Stopped at: lint cleanup, before any edits. **Working tree clean, nothing stashe
 | ✅ | Mobile navigation drawer (+ mobile header layout) | `b6cac65` |
 | ✅ | Each sidebar route gets its own page | `11988fb` |
 | ✅ | Six real TypeScript errors resolved | `4ab771a` |
-| 🔄 | Lint cleanup — **not started**, inspection only | — |
+| ✅ | Lint cleanup — dead code, `any`, stale closure | `7406163` `37efa08` `cb9c476` |
 | 🔴 | Receipts savable into unreadable state | needs you |
 | 🔴 | `/oppgjor` beyond display | needs you |
 | 🔴 | shadcn peer deps | needs you |
 
 **Health:** TypeScript errors 24 → 16 (all 16 are the shadcn peer-dep question).
-Production build passes. All five routes verified rendering distinct content.
+Lint 64 → 35. Production build passes. All five routes verified in a clean
+browser tab with no console errors.
 
 ---
 
-## ✅ Completed tonight
+## ✅ Completed
 
 ### Restore three commits dropped by the #11 squash merge · `984d702`
 
@@ -123,57 +124,42 @@ Verified all five in the browser: distinct headings, distinct content.
 
 ---
 
-## 🔄 In progress when stopped
+### Lint cleanup · `7406163`, `37efa08`, `cb9c476`
 
-### Lint cleanup — inspection done, **zero edits made**
+64 → 35 problems, in three commits.
 
-Nothing is half-applied. I ran the census and inspected the ambiguous cases, then
-stopped rather than start edits I couldn't finish and commit.
+**Dead code** (`7406163`) — unused imports across AppSidebar, BudgetProgress,
+CategoryReview, SpendingOverview, ReceiptUpload; the unused `getMemberName`
+helper; `household` in Settlement and useMonthlyReceipts; two unused catch
+bindings. `use-toast`'s `actionTypes` was a runtime const read only via
+`typeof`, so it's now a plain type.
 
-Current state: **60 problems**, down from 64 (the four removed were incidental to
-the type fixes).
+**Explicit any** (`37efa08`) — 7 → 0. SpendingTrend held five; added `TrendItem`
+matching the embedded select's real shape, `ChartRow` for the recharts rows, and
+`TooltipEntry` for the custom tooltip (whose `value` is optional in recharts'
+payload, so the total now coalesces instead of assuming a number). BudgetSettings
+narrowed `catch (error: any)` to `unknown` with an instanceof check.
 
-| Count | Rule | Assessment |
+**A real bug found through `exhaustive-deps`** (`cb9c476`) — `handleDrop` was
+`useCallback(…, [])` while `processImage` is a plain function recreated each
+render. The callback captured the first render's copy permanently, and that copy
+closed over `mappings`/`categories` while React Query still had them undefined.
+So **any receipt added by dropping a file was categorised against an empty
+mapping set** — learned categorisation and the system-confidence signal were both
+silently inert and every item fell through to "needs review". File-picker uploads
+were unaffected. Removed the memoisation; the dropzone isn't memoised so the
+stable identity bought nothing.
+
+#### Stopped here deliberately — the remaining 35 are not worth churn
+
+| Count | Rule | Why left |
 |---|---|---|
-| 22 | `no-unused-vars` | Safe mechanical removals — **start here** |
-| 12 | `react-refresh/only-export-components` | Almost all shadcn `ui/` files exporting variant objects. Low value, leave. |
-| 11 | `set-state-in-effect` | Needs judgement per case; several are legitimate (async-derived state) |
-| 7 | `no-explicit-any` | Needs real types; moderate effort |
-| 4 | `exhaustive-deps` | Each needs checking for stale-closure bugs |
-| 2 | `preserve-manual-memoization` | In `ReceiptList` memos |
-| 2 | `no-empty-object-type` | shadcn `ui/` |
-| 1 | `react-hooks/purity` | — |
-
-**Next concrete step:** the 19 non-ui `no-unused-vars`, which are plain dead
-imports and locals:
-
-```
-AppSidebar.tsx:2        Settings, LogOut
-BudgetProgress.tsx:1    Progress
-BudgetSettings.tsx:61   _          (destructure placeholder — rename or ignore)
-BudgetSettings.tsx:73   error      (unused catch binding)
-CategoryReview.tsx:5,7  useHousehold, Badge
-ReceiptItemEditor.tsx:31 isEditing
-ReceiptUpload.tsx:6     Upload, Pencil
-ReceiptUpload.tsx:484   getMemberName
-Settlement.tsx:28       household
-ShoppingList.tsx:109    itemsWithEstimates
-SpendingOverview.tsx:1,4 CardTitle, Wallet, TrendingUp, TrendingDown
-use-toast.ts:15         actionTypes (used as a type only)
-useBudgetData.ts:300    household
-```
-
-**Two I checked and would NOT blind-delete:**
-
-- `ReceiptItemEditor.tsx:31 isEditing` — the *setter* `setIsEditing` is used 7
-  times. The state is written but never read, which usually means a render
-  branch was dropped, not that the state is junk. Deleting it would also mean
-  deleting 7 setter calls. Look at what it was meant to gate before touching it.
-- `ShoppingList.tsx:109 itemsWithEstimates` — its sibling
-  `itemsWithoutEstimates` *is* used 3 times. Same smell: a rendering branch that
-  was meant to split estimated vs unestimated items and got half-removed.
-
-The other 17 are genuinely dead and safe to delete in one commit.
+| 14 | (various) | Vendored shadcn `ui/` files |
+| 5 | `only-export-components` | Standard context pattern — exporting `useAuth` beside `AuthProvider`. Fixing means splitting every context into two files for HMR granularity, with no functional gain. The rule is mismatched to this codebase. |
+| 11 | `set-state-in-effect` | Almost all legitimate syncing from an external source: a media-query listener, the PWA install prompt, prop→state resets, async data landing in context. Rewriting to `useSyncExternalStore` or derived state would be invasive and riskier than the warnings. |
+| 2 | `exhaustive-deps` | **Would change behaviour — see 🔴 #4.** |
+| 2 | `preserve-manual-memoization` | React-compiler informational, in ReceiptList memos. |
+| 2 | `no-unused-vars` | The two flagged below; both look like dropped render branches. |
 
 ---
 
@@ -232,6 +218,38 @@ nowhere) holds the split-ratio editor and close flow. A TODO in
 and takes TS errors to zero; installing adds dependencies for components nothing
 uses. Left alone per the no-new-dependencies constraint.
 
+### 4. Two `exhaustive-deps` that would change behaviour if "fixed"
+
+Both are effects whose deps are intentionally narrow. Adding the missing values
+is not a no-op, so I left them:
+
+- **`ReceiptUpload.tsx:95`** — `useEffect(…, [startManual])` also reads `state`.
+  Adding `state` means that after the user hits *Avbryt* (which resets state to
+  `idle`) while `startManual` is still true, the effect re-fires and bounces
+  them straight back into the review form. Is the current fire-once-on-prop-flip
+  the intended behaviour, or should cancel be able to return to the idle screen?
+
+- **`HouseholdContext.tsx:120`** — `useEffect(…, [user])` calls `fetchHousehold`,
+  which is recreated every render. Adding it as a dep loops unless the function
+  is wrapped in `useCallback` first. That is the standard fix, but it is on the
+  household/auth data path, so I would rather you sign off than have me refactor
+  it unattended.
+
+### 5. Two unused locals that look like dropped render branches
+
+Left in place from the dead-code pass because in both cases the sibling binding
+is still actively used, which reads like a rendering branch that was half
+removed rather than genuinely dead code:
+
+- `ReceiptItemEditor.tsx:31` — `isEditing` is never read, but `setIsEditing` is
+  called **7 times**. Something was meant to be gated on it.
+- `ShoppingList.tsx:109` — `itemsWithEstimates` is unused while its sibling
+  `itemsWithoutEstimates` is used 3 times. Looks like a split between estimated
+  and unestimated items that never landed.
+
+Deleting either would also mean deleting the writes, which would discard
+whatever the intent was.
+
 ---
 
 ## Notes for tomorrow
@@ -240,4 +258,4 @@ uses. Left alone per the no-new-dependencies constraint.
   commit or rebase instead, or check `git log main..branch` is empty after merge.
 - The `QueryErrorState` branches are **unverified at runtime** — the one thing
   from tonight I'd most want eyes on.
-- Nothing was pushed. `git push -u origin overnight-fixes` when you're ready.
+- Branch pushed as `overnight-fixes`; no PR opened yet.

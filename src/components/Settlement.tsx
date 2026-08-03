@@ -25,7 +25,7 @@ interface SettlementResult {
 }
 
 export function Settlement() {
-  const { members, household } = useHousehold();
+  const { members } = useHousehold();
   const { data: receipts } = useMonthlyReceipts();
   const { data: splitRatios } = useSplitRatios();
   const saveSplitRatios = useSaveSplitRatios();

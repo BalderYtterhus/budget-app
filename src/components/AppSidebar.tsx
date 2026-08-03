@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { LayoutGrid, Receipt, Users, Tag, TrendingUp, Settings, LogOut, Plus } from "lucide-react";
+import { LayoutGrid, Receipt, Users, Tag, TrendingUp, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useMonthlyReceipts, useSplitRatios } from "@/hooks/useBudgetData";

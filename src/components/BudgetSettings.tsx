@@ -58,7 +58,7 @@ export function BudgetSettings() {
         year: selectedYear,
         totalBudget: parseFloat(totalBudget) || 0,
         categoryBudgets: Object.entries(categoryBudgets)
-          .filter(([_, amount]) => parseFloat(amount) > 0)
+          .filter(([, amount]) => parseFloat(amount) > 0)
           .map(([categoryId, amount]) => ({
             categoryId,
             amount: parseFloat(amount),
@@ -70,7 +70,7 @@ export function BudgetSettings() {
         description: `Budsjettet for ${monthLabel} er oppdatert.`,
       });
       setOpen(false);
-    } catch (error) {
+    } catch {
       toast({
         title: "Feil ved lagring av budsjett",
         description: "Vennligst prøv igjen.",

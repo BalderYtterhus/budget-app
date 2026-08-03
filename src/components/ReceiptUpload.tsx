@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Upload, Camera, Loader2, CheckCircle, X, Image, AlertCircle, Pencil, Plus, Trash2 } from "lucide-react";
+import { Camera, Loader2, CheckCircle, X, Image, AlertCircle, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { normalizeForMatch, calculateSimilarity } from "@/lib/textMatch";
 import { computeSystemConfidence, reconcileConfidence, type ConfidenceVerdict } from "@/lib/systemConfidence";
@@ -479,11 +479,6 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
     setImageUrl(null);
     setPaidByUser(user?.id || "");
     setReceiptLabel("");
-  };
-
-  const getMemberName = (userId: string) => {
-    const member = members.find(m => m.user_id === userId);
-    return member?.profile?.display_name || member?.profile?.email || "Ukjent";
   };
 
   return (

@@ -297,7 +297,6 @@ export function useCurrentBudget() {
 }
 
 export function useMonthlyReceipts() {
-  const { household } = useHousehold();
   const { selectedMonth, selectedYear } = useMonth();
   const { activeSettlement } = useSettlementContext();
 

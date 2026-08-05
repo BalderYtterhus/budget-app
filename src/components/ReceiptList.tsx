@@ -27,8 +27,10 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Receipt, ScrollText, Trash2, ChevronRight, Store, User, AlertTriangle, AlertCircle, Ban, Pencil, Check, Tag, Search, X, ZoomIn } from "lucide-react";
+import { Receipt, ScrollText, Trash2, ChevronRight, Store, User, Users, AlertTriangle, AlertCircle, Ban, Pencil, Check, Tag, Search, X, ZoomIn } from "lucide-react";
 import { useMonthlyReceipts, useDeleteReceipt, useCategories, useUpdateReceiptPayer, useUpdateReceipt } from "@/hooks/useBudgetData";
+import { useSettlementNames } from "@/hooks/useSettlements";
+import { useSettlementContext } from "@/contexts/SettlementContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { Receipt as ReceiptType } from "@/types/budget";
 import { format } from "date-fns";
@@ -43,6 +45,19 @@ export function ReceiptList() {
   const { data: receipts, isLoading, isError, error, refetch } = useMonthlyReceipts();
   const { data: categories } = useCategories();
   const { members } = useHousehold();
+  const { data: settlementNames } = useSettlementNames();
+  const { activeSettlement } = useSettlementContext();
+
+  /**
+   * The list is no longer settlement-scoped, so a row can belong to another
+   * settlement or to none at all. Badge only those two cases — badging every
+   * row when they all sit in the active settlement would be pure noise.
+   */
+  const settlementBadge = (receipt: ReceiptType): string | null => {
+    if (!receipt.settlement_id) return "Ikke i oppgjør";
+    if (receipt.settlement_id === activeSettlement?.id) return null;
+    return settlementNames?.[receipt.settlement_id] ?? "Annet oppgjør";
+  };
   const deleteReceipt = useDeleteReceipt();
   const updateReceiptPayer = useUpdateReceiptPayer();
   const updateReceipt = useUpdateReceipt();
@@ -207,6 +222,12 @@ export function ReceiptList() {
                           <Badge variant="secondary" className="text-xs h-5 gap-1 shrink-0">
                             <Tag className="h-2.5 w-2.5" />
                             {receipt.label}
+                          </Badge>
+                        )}
+                        {settlementBadge(receipt) && (
+                          <Badge variant="outline" className="text-xs h-5 gap-1 shrink-0 text-muted-foreground">
+                            <Users className="h-2.5 w-2.5" />
+                            {settlementBadge(receipt)}
                           </Badge>
                         )}
                       </div>

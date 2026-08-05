@@ -1,7 +1,8 @@
 # Overnight work log — 2026-08-02 → 08-03
 
 Branch: `overnight-fixes` (off `main` @ `ea273ff`)
-**All ✅ items complete.** Three 🔴 decisions remain — see bottom.
+**All ✅ items complete.** 🔴 #1 settled 2026-08-03; four 🔴 decisions remain —
+see bottom.
 
 ---
 
@@ -16,9 +17,11 @@ Branch: `overnight-fixes` (off `main` @ `ea273ff`)
 | ✅ | Each sidebar route gets its own page | `11988fb` |
 | ✅ | Six real TypeScript errors resolved | `4ab771a` |
 | ✅ | Lint cleanup — dead code, `any`, stale closure | `7406163` `37efa08` `cb9c476` |
-| 🔴 | Receipts savable into unreadable state | needs you |
+| ✅ | Receipts savable into unreadable state — settled, see 🔴 #1 | `e83e02e` |
 | 🔴 | `/oppgjor` beyond display | needs you |
 | 🔴 | shadcn peer deps | needs you |
+| 🔴 | two `exhaustive-deps` that change behaviour | needs you |
+| 🔴 | two unused locals — dropped render branches? | needs you |
 
 **Health:** TypeScript errors 24 → 16 (all 16 are the shadcn peer-dep question).
 Lint 64 → 35. Production build passes. All five routes verified in a clean
@@ -172,29 +175,58 @@ Nothing else — every ✅ item except lint cleanup is committed. The plan's P2
 
 ## 🔴 Still red — needs your decision
 
-### 1. Receipts can still be saved into an unreadable state
+### 1. ~~Receipts can still be saved into an unreadable state~~ — SETTLED 2026-08-03
 
-`useSaveReceipt` writes `settlement_id: activeSettlement?.id || null`;
-`useMonthlyReceipts` returns `[]` when no settlement is active and filters on an
-exact match. A receipt saved with NULL is invisible in every month, permanently,
-with no UI to reassign it.
+Settled as a corrected version of (b), after the investigation showed the write
+path was the wrong place to look.
 
-The `20260802300000` migration re-attached existing orphans, so **nothing is
-currently stranded** — but the code path is still open.
+**The framing above was too narrow.** The problem was never that
+`useSaveReceipt` writes NULL — it was that `useMonthlyReceipts` was the only
+receipt query scoped by settlement at all. That scoping was wrong on four
+independent counts:
 
-**The decision:** what happens when someone scans with no active settlement?
+- `SpendingTrend` already queried by `household_id` alone, so the 6-month chart
+  and the month view disagreed about the same receipts.
+- `budgets` is keyed household + month + year, so a settlement-scoped spend was
+  being compared against a whole-month budget.
+- `useSettlements` is `status = 'active'` only, so closing a settlement made
+  every receipt on it vanish from every month view — the same loss as the NULL
+  case, and one that none of (a)/(b)/(c) addressed.
+- `ExportData` rides the same hook, so CSV exports were silently partial.
 
-- **(a) Block the save**, prompt to create a settlement. Safest, no invisible
-  data possible — but interrupts the scan at the worst moment, after the user
-  has already photographed the receipt.
-- **(b) Save as unassigned** and show it in the list with an "assign to
-  settlement" affordance. Better UX; requires the list query to stop filtering on
-  an exact settlement match, plus new assignment UI.
-- **(c) Auto-create a default settlement** on first receipt. Invisible to the
-  user, but silently creates settlements they didn't name.
+**What was done** (all client-side; no migration, no schema change):
 
-I implemented none. **(b) is probably right** but it changes read semantics for
-every receipt query — too broad to decide unattended.
+1. `useMonthlyReceipts` filters `household_id` + date range. No settlement
+   filter, no `if (!activeSettlement) return []`.
+2. Budget totals count every receipt in the household for the month, matching
+   `SpendingTrend`'s existing behaviour.
+3. New `useSettlementBalances` hook owns all settlement scoping: it filters
+   receipts to one settlement in memory and does the settle-up math.
+4. `ReceiptList` badges any receipt not in the active settlement, including
+   `"Ikke i oppgjør"` for NULL. Not-in-a-settlement is now a visible state.
+5. `useSaveReceipt` is **unchanged** — it still writes NULL when no settlement
+   is active. That is now a legitimate state rather than data loss.
+
+**A second bug surfaced while doing it, and is fixed in the same change.**
+`AppSidebar`, `SettlementOversikt` and `Settlement` each held their own copy of
+the balance math, and all three split across **household** members at household
+`split_ratios` — never reading `settlement_members`, despite
+`useCreateSettlement` writing per-settlement members and ratios on create and
+`useSettlements` already fetching them. A member who was not on a custom
+settlement was still charged a share of it. All three now call
+`useSettlementBalances`, which takes membership and ratios from
+`settlement_members` and falls back to the household split only for settlements
+with no members rows. Ratios are also normalised now — both source tables can be
+partially filled, so they were not guaranteed to sum to 100.
+
+**Verified** against live data: with the empty "Huta 25" settlement active, May
+2026 went from `0,00 kr` / "Ingen kvitteringer" to `2 060,30 kr` and all three
+receipts listed, each badged "Alani og balder". No console errors.
+
+**Not done, deliberately:** no assign-to-settlement action on the badge yet —
+receipts are visible and countable, just not reassignable from the UI. The NULL
+badge path is untested against real rows because the `20260802300000` backfill
+left none.
 
 ### 2. `/oppgjor` beyond display
 
@@ -258,4 +290,12 @@ whatever the intent was.
   commit or rebase instead, or check `git log main..branch` is empty after merge.
 - The `QueryErrorState` branches are **unverified at runtime** — the one thing
   from tonight I'd most want eyes on.
+- **`SettlementSwitcher` is mounted nowhere** (found while verifying 🔴 #1;
+  CLAUDE.md wrongly claimed it was in the header, now corrected). There are two
+  active settlements and no UI to switch between them — only
+  `localStorage.activeSettlementId` or the newest-active fallback. Cheapest
+  remaining fix, and it is what makes settlements usable at all.
+- `supabase/migrations/20260514000004_profiles_avatar.sql` is **untracked** —
+  same repo/DB divergence the #11 squash caused. Commit it or confirm it is
+  meant to be local.
 - Branch pushed as `overnight-fixes`; no PR opened yet.

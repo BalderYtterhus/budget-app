@@ -12,7 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowRight, Settings, AlertTriangle, CheckCircle } from "lucide-react";
 import { useHousehold } from "@/contexts/HouseholdContext";
-import { useMonthlyReceipts, useSplitRatios, useSaveSplitRatios } from "@/hooks/useBudgetData";
+import { useSplitRatios, useSaveSplitRatios } from "@/hooks/useBudgetData";
+import { useSettlementBalances, receiptTotal } from "@/hooks/useSettlementBalances";
 import { formatNOK } from "@/lib/format";
 import { useToast } from "@/hooks/use-toast";
 
@@ -26,10 +27,20 @@ interface SettlementResult {
 
 export function Settlement() {
   const { members } = useHousehold();
-  const { data: receipts } = useMonthlyReceipts();
   const { data: splitRatios } = useSplitRatios();
   const saveSplitRatios = useSaveSplitRatios();
   const { toast } = useToast();
+
+  // Membership, ratios and the settle-up math all come from the active
+  // settlement — see useSettlementBalances. This component used to compute them
+  // from household members at household split_ratios, which charged people for
+  // settlements they were never on.
+  const {
+    receipts: settlementReceipts,
+    balances,
+    transactions,
+    totalSpent,
+  } = useSettlementBalances();
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingRatios, setEditingRatios] = useState<Record<string, number>>({});
@@ -40,91 +51,27 @@ export function Settlement() {
     return member?.profile?.display_name || member?.profile?.email?.split("@")[0] || "Ukjent";
   };
 
-  // Calculate paid totals per user (using included items only for settlement)
-  const paidByUser = receipts?.reduce((acc, receipt) => {
-    if (receipt.paid_by_user) {
-      const items = receipt.items ?? [];
-      // If receipt has items, sum only included ones
-      let receiptTotal: number;
-      if (items.length > 0) {
-        receiptTotal = items
-          .filter(item => item.included_in_totals !== false)
-          .reduce((sum, item) => sum + Number(item.price), 0);
-      } else {
-        receiptTotal = Number(receipt.total_amount);
-      }
-      acc[receipt.paid_by_user] = (acc[receipt.paid_by_user] || 0) + receiptTotal;
-    }
-    return acc;
-  }, {} as Record<string, number>) || {};
-
   // Calculate unassigned receipts
-  const unassignedReceipts = receipts?.filter(r => !r.paid_by_user) || [];
-  const unassignedTotal = unassignedReceipts.reduce((sum, r) => sum + Number(r.total_amount), 0);
+  const unassignedReceipts = settlementReceipts.filter(r => !r.paid_by_user);
+  const unassignedTotal = unassignedReceipts.reduce((sum, r) => sum + receiptTotal(r), 0);
 
-  // Total spent (only assigned)
-  const totalSpent = Object.values(paidByUser).reduce((sum, amount) => sum + amount, 0);
-
-  // Get ratios for each member (default to equal split)
+  // TODO (🔴 #2): this editor writes household-level split_ratios, which are
+  // only the fallback once a settlement has settlement_members rows. Before
+  // mounting this component, it needs to write settlement_members.ratio for the
+  // active settlement instead, or the numbers above will not move when saved.
   const getRatio = (userId: string): number => {
     const ratio = splitRatios?.find(r => r.user_id === userId);
     if (ratio) return Number(ratio.ratio);
-    // Default: equal split
     return members.length > 0 ? 100 / members.length : 50;
   };
 
-  // Calculate settlement
-  const calculateSettlement = (): SettlementResult[] => {
-    if (members.length < 2 || totalSpent === 0) return [];
-
-    // Calculate what each person should pay
-    const balances: { userId: string; name: string; balance: number }[] = members.map(member => {
-      const shouldPay = totalSpent * (getRatio(member.user_id) / 100);
-      const actuallyPaid = paidByUser[member.user_id] || 0;
-      return {
-        userId: member.user_id,
-        name: getMemberName(member.user_id),
-        balance: actuallyPaid - shouldPay, // positive = should receive, negative = should pay
-      };
-    });
-
-    // Sort by balance (debtors first, creditors last)
-    balances.sort((a, b) => a.balance - b.balance);
-
-    const settlements: SettlementResult[] = [];
-    let i = 0; // debtors index
-    let j = balances.length - 1; // creditors index
-
-    while (i < j) {
-      const debtor = balances[i];
-      const creditor = balances[j];
-
-      if (debtor.balance >= -0.01) break; // No more debtors
-      if (creditor.balance <= 0.01) break; // No more creditors
-
-      const amount = Math.min(-debtor.balance, creditor.balance);
-
-      if (amount > 0.01) {
-        settlements.push({
-          fromUserId: debtor.userId,
-          fromUserName: debtor.name,
-          toUserId: creditor.userId,
-          toUserName: creditor.name,
-          amount: Math.round(amount * 100) / 100,
-        });
-      }
-
-      debtor.balance += amount;
-      creditor.balance -= amount;
-
-      if (debtor.balance >= -0.01) i++;
-      if (creditor.balance <= 0.01) j--;
-    }
-
-    return settlements;
-  };
-
-  const settlements = calculateSettlement();
+  const settlements: SettlementResult[] = transactions.map(t => ({
+    fromUserId: t.from,
+    fromUserName: getMemberName(t.from),
+    toUserId: t.to,
+    toUserName: getMemberName(t.to),
+    amount: t.amount,
+  }));
 
   const handleOpenSettings = () => {
     // Initialize editing ratios with current values
@@ -274,26 +221,20 @@ export function Settlement() {
             <span className="font-semibold">{formatNOK(totalSpent)}</span>
           </div>
           
-          {members.map(member => {
-            const paid = paidByUser[member.user_id] || 0;
-            const shouldPay = totalSpent * (getRatio(member.user_id) / 100);
-            const ratio = getRatio(member.user_id);
-            
-            return (
-              <div key={member.user_id} className="flex justify-between text-sm py-1 border-t first:border-t-0">
-                <div>
-                  <span>{getMemberName(member.user_id)}</span>
-                  <span className="text-muted-foreground ml-1">({ratio.toFixed(0)}%)</span>
-                </div>
-                <div className="text-right">
-                  <span className="font-medium">{formatNOK(paid)}</span>
-                  <span className="text-muted-foreground text-xs ml-1">
-                    / {formatNOK(shouldPay)}
-                  </span>
-                </div>
+          {balances.map(member => (
+            <div key={member.userId} className="flex justify-between text-sm py-1 border-t first:border-t-0">
+              <div>
+                <span>{getMemberName(member.userId)}</span>
+                <span className="text-muted-foreground ml-1">({member.ratio.toFixed(0)}%)</span>
               </div>
-            );
-          })}
+              <div className="text-right">
+                <span className="font-medium">{formatNOK(member.paid)}</span>
+                <span className="text-muted-foreground text-xs ml-1">
+                  / {formatNOK(member.shouldPay)}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Settlement result */}
@@ -314,7 +255,7 @@ export function Settlement() {
               </div>
             ))}
           </div>
-        ) : totalSpent > 0 && members.length >= 2 ? (
+        ) : totalSpent > 0 && balances.length >= 2 ? (
           <div className="flex items-center gap-2 p-3 rounded-lg bg-success/10 border border-success/20">
             <CheckCircle className="h-4 w-4 text-success" />
             <span className="text-sm text-success font-medium">Alle har betalt sin andel!</span>

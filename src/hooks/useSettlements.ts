@@ -42,6 +42,33 @@ export function useSettlements() {
   });
 }
 
+/**
+ * id → name for every settlement in the household, closed ones included.
+ *
+ * useSettlements is active-only and useClosedSettlements caps at 5, so neither
+ * can name the settlement on an older receipt. The receipt list needs that to
+ * show where a receipt belongs — including receipts belonging nowhere.
+ */
+export function useSettlementNames() {
+  const { household } = useHousehold();
+
+  return useQuery({
+    queryKey: ["settlement-names", household?.id],
+    queryFn: async (): Promise<Record<string, string>> => {
+      if (!household) return {};
+
+      const { data, error } = await supabase
+        .from("settlements")
+        .select("id, name")
+        .eq("household_id", household.id);
+
+      if (error) throw error;
+      return Object.fromEntries((data ?? []).map(s => [s.id, s.name]));
+    },
+    enabled: !!household,
+  });
+}
+
 export function useCreateSettlement() {
   const queryClient = useQueryClient();
   const { user } = useAuth();

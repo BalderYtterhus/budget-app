@@ -21,6 +21,7 @@ All user-facing text is **Norwegian Bokmål**.
 - A DB trigger (`on_auth_user_created`) auto-creates household + profile on signup
 - `normalizedName` on receipt_items is the key to price comparison — lowercase, no quantities/weights/store codes
 - `store_chain` on receipts is the normalized chain name — "Rema 1000 Majorstua" → "rema 1000"
+- **A settlement is a payment-splitting grouping, not a spending period.** Monthly views (receipts, budget, totals, trend, export) are scoped by `household_id` + date and never by `settlement_id`. Only `useSettlementBalances` filters by settlement. Re-adding a settlement filter to a month query is what made NULL-settlement and closed-settlement receipts permanently invisible
 - Currency: `formatNOK()` from `src/lib/format.ts`
 - Class merging: `cn()` from `src/lib/utils.ts`
 - Toast notifications: `useToast()` from shadcn
@@ -106,7 +107,8 @@ Roadmap state: Phases 1, 2, 4, 5 done · Phase 3 instrumented, awaiting data · 
 - `useUpdateReceipt` — updates store_name, receipt_date, total_amount on a receipt
 - `useUpdateReceiptItem`, `useDeleteReceipt`, `useUpdateReceiptPayer`
 - `useItemMappings`, `useSplitRatios`, `useSaveSplitRatios`
-- `useSettlements`, `useCreateSettlement`, `useCloseSettlement`
+- `useSettlements`, `useCreateSettlement`, `useCloseSettlement`, `useSettlementNames` (id→name incl. closed)
+- `useSettlementBalances` — **the only place settlement scoping lives.** Filters `useMonthlyReceipts` to one settlement and does the settle-up math off `settlement_members`. Never re-derive balances in a component; three copies of that math is how the household-vs-settlement member bug survived
 - `useShoppingList`, `useAddShoppingListItem`, `useUpdateShoppingListItem`, `useDeleteShoppingListItem`
 - `useRemoveMatchedItems` — auto-removes shopping list items when a receipt is uploaded
 - `useEstimatePrices` — median price from receipt history
@@ -121,7 +123,7 @@ Roadmap state: Phases 1, 2, 4, 5 done · Phase 3 instrumented, awaiting data · 
 - `ReceiptList` — lists receipts with item detail, payer assignment, inline edit (store name, date, total) via pencil icon in detail dialog
 - `Settlement` — full settlement card with split ratio settings (not on main page)
 - `SettlementOversikt` — compact member balance card; "Avslutt" button closes active settlement and prompts to create a new one
-- `SettlementSwitcher` — dropdown to switch active settlement in header
+- `SettlementSwitcher` — dropdown to switch active settlement. **Written but not mounted anywhere**
 - `ConsentModal` — price sharing consent dialog (first login)
 - `CategoryReviewButton` — header button with badge, opens Sheet for bulk category fixes
 - `SpendingTrend` — 6-month stacked bar chart by category
@@ -142,7 +144,8 @@ All authenticated pages render inside `AppLayout` (sidebar + mobile drawer + hea
 - `/prisdatabase` — anonymous price database stats + product price trend chart
 
 ## Known gaps / not yet built
-- **Receipts can be saved into an unreadable state.** `useSaveReceipt` writes `settlement_id: activeSettlement?.id || null`; `useMonthlyReceipts` returns `[]` with no active settlement and filters on an exact match. A NULL-settlement receipt is invisible in every month, permanently, with no UI to reassign it. Existing orphans were recovered by `20260802300000`; the code path is still open. **Design decision pending** — see OVERNIGHT_LOG.md.
+- A receipt with no settlement is visible and counted, but there is **no UI to assign it to one**. The badge in `ReceiptList` is display-only.
+- `SettlementSwitcher` is written but **mounted nowhere** — the active settlement can only change via `localStorage.activeSettlementId` or by falling back to the newest active settlement
 - `/oppgjor` is display-only; `Settlement.tsx` (split-ratio editor, close flow) is written but mounted nowhere
 - 16 TypeScript errors, all from `src/components/ui/` files importing never-installed peer deps (`cmdk`, `vaul`, `react-day-picker`, `react-hook-form`, `embla-carousel-react`, `input-otp`, `react-resizable-panels`). No app code imports them. **Install or delete — pending decision.**
 - Old receipt images have broken URLs (bucket went private after they were uploaded as public)

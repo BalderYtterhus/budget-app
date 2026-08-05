@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowRight, AlertTriangle, CheckCircle, Users, X } from "lucide-react";
 import { useHousehold } from "@/contexts/HouseholdContext";
-import { useMonthlyReceipts, useSplitRatios } from "@/hooks/useBudgetData";
+import { useSettlementBalances } from "@/hooks/useSettlementBalances";
 import { useSettlementContext } from "@/contexts/SettlementContext";
 import { useCloseSettlement, useCreateSettlement } from "@/hooks/useSettlements";
 import { formatNOK } from "@/lib/format";
@@ -39,8 +39,7 @@ export function SettlementOversikt() {
   const [showCloseDialog, setShowCloseDialog] = useState(false);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newName, setNewName] = useState("");
-  const { data: receipts } = useMonthlyReceipts();
-  const { data: splitRatios } = useSplitRatios();
+  const { balances, transactions, totalSpent, unassignedPayerCount } = useSettlementBalances();
 
   const handleClose = async () => {
     if (!activeSettlement) return;
@@ -69,47 +68,6 @@ export function SettlementOversikt() {
     const name = getMemberName(userId);
     return name.slice(0, 2).toUpperCase();
   };
-
-  const getRatio = (userId: string): number => {
-    const ratio = splitRatios?.find(r => r.user_id === userId);
-    if (ratio) return Number(ratio.ratio);
-    return members.length > 0 ? 100 / members.length : 50;
-  };
-
-  const paidByUser = receipts?.reduce((acc, receipt) => {
-    if (receipt.paid_by_user) {
-      const items = receipt.items ?? [];
-      const total = items.length > 0
-        ? items.filter(i => i.included_in_totals !== false).reduce((s, i) => s + Number(i.price), 0)
-        : Number(receipt.total_amount);
-      acc[receipt.paid_by_user] = (acc[receipt.paid_by_user] || 0) + total;
-    }
-    return acc;
-  }, {} as Record<string, number>) || {};
-
-  const unassignedCount = receipts?.filter(r => !r.paid_by_user).length ?? 0;
-  const totalSpent = Object.values(paidByUser).reduce((s, a) => s + a, 0);
-
-  // Two-pointer minimum-transactions settlement
-  const balances = members.map(member => {
-    const shouldPay = totalSpent * (getRatio(member.user_id) / 100);
-    const actuallyPaid = paidByUser[member.user_id] || 0;
-    return { userId: member.user_id, balance: actuallyPaid - shouldPay };
-  }).sort((a, b) => a.balance - b.balance);
-
-  const transactions: { from: string; to: string; amount: number }[] = [];
-  const bal = balances.map(b => ({ ...b }));
-  let i = 0, j = bal.length - 1;
-  while (i < j) {
-    if (bal[i].balance >= -0.01) break;
-    if (bal[j].balance <= 0.01) break;
-    const amount = Math.min(-bal[i].balance, bal[j].balance);
-    if (amount > 0.01) transactions.push({ from: bal[i].userId, to: bal[j].userId, amount: Math.round(amount * 100) / 100 });
-    bal[i].balance += amount;
-    bal[j].balance -= amount;
-    if (bal[i].balance >= -0.01) i++;
-    if (bal[j].balance <= 0.01) j--;
-  }
 
   if (members.length < 2) return null;
 
@@ -144,42 +102,49 @@ export function SettlementOversikt() {
       </CardHeader>
       <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-3">
 
-        {/* Unassigned warning */}
-        {unassignedCount > 0 && (
-          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-warning/10 border border-warning/20 text-sm">
-            <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+        {/* No settlement to split against */}
+        {!activeSettlement && (
+          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/40 text-sm">
+            <AlertTriangle className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="text-muted-foreground">
-              {unassignedCount} kvittering{unassignedCount > 1 ? "er" : ""} mangler betaler
+              Ingen aktivt oppgjør. Kvitteringene vises fortsatt i lista — start et oppgjør for å fordele dem.
             </span>
           </div>
         )}
 
-        {/* Member rows */}
+        {/* Unassigned warning */}
+        {unassignedPayerCount > 0 && (
+          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-warning/10 border border-warning/20 text-sm">
+            <AlertTriangle className="h-4 w-4 text-warning shrink-0" />
+            <span className="text-muted-foreground">
+              {unassignedPayerCount} kvittering{unassignedPayerCount > 1 ? "er" : ""} mangler betaler
+            </span>
+          </div>
+        )}
+
+        {/* Member rows — the settlement's members, not the household's */}
         <div className="space-y-2">
-          {members.map(member => {
-            const paid = paidByUser[member.user_id] || 0;
-            const shouldPay = totalSpent * (getRatio(member.user_id) / 100);
-            const balance = paid - shouldPay;
-            const isPositive = balance >= 0;
+          {balances.map(member => {
+            const isPositive = member.balance >= 0;
 
             return (
-              <div key={member.user_id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/40">
+              <div key={member.userId} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/40">
                 <Avatar className="h-8 w-8 shrink-0">
                   <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
-                    {getInitials(member.user_id)}
+                    {getInitials(member.userId)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{getMemberName(member.user_id)}</p>
+                  <p className="text-sm font-medium truncate">{getMemberName(member.userId)}</p>
                   <p className="text-xs text-muted-foreground">
-                    Betalt {formatNOK(paid)} · andel {getRatio(member.user_id).toFixed(0)}%
+                    Betalt {formatNOK(member.paid)} · andel {member.ratio.toFixed(0)}%
                   </p>
                 </div>
                 <div className={cn(
                   "text-sm font-semibold tabular-nums",
                   totalSpent === 0 ? "text-muted-foreground" : isPositive ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                 )}>
-                  {totalSpent === 0 ? "–" : `${isPositive ? "+" : ""}${formatNOK(balance)}`}
+                  {totalSpent === 0 ? "–" : `${isPositive ? "+" : ""}${formatNOK(member.balance)}`}
                 </div>
               </div>
             );

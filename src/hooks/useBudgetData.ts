@@ -13,7 +13,6 @@ import { useHousehold } from "@/contexts/HouseholdContext";
 import { useMonth } from "@/contexts/MonthContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { useSettlementContext } from "@/contexts/SettlementContext";
 
 export function useCategories() {
   const { household } = useHousehold();
@@ -296,18 +295,32 @@ export function useCurrentBudget() {
   });
 }
 
+/**
+ * Every receipt in the household for the selected month.
+ *
+ * Deliberately NOT scoped by settlement. A settlement is a payment-splitting
+ * grouping, not a spending period: `budgets` is keyed household + month + year,
+ * so filtering this by the currently-selected settlement compared a whole-month
+ * budget against a fraction of the month's spend. It also made two categories of
+ * receipt permanently unreachable — those saved with settlement_id NULL (no
+ * active settlement at save time) and those on a settlement that was later
+ * closed, since useSettlements only returns status = 'active'.
+ *
+ * Settlement scoping now lives in useSettlementBalances, which filters these
+ * rows in memory for the who-owes-whom math. See OVERNIGHT_LOG.md 🔴 #1.
+ */
 export function useMonthlyReceipts() {
   const { selectedMonth, selectedYear } = useMonth();
-  const { activeSettlement } = useSettlementContext();
+  const { household } = useHousehold();
 
   const startDate = new Date(selectedYear, selectedMonth - 1, 1).toISOString().split("T")[0];
   const endDate = new Date(selectedYear, selectedMonth, 0).toISOString().split("T")[0];
 
   return useQuery({
-    queryKey: ["receipts", selectedMonth, selectedYear, activeSettlement?.id],
+    queryKey: ["receipts", selectedMonth, selectedYear, household?.id],
     queryFn: async (): Promise<Receipt[]> => {
-      if (!activeSettlement) return [];
-      
+      if (!household) return [];
+
       const { data, error } = await supabase
         .from("receipts")
         .select(`
@@ -317,14 +330,14 @@ export function useMonthlyReceipts() {
             category:categories!receipt_items_category_id_fkey (*)
           )
         `)
-        .eq("settlement_id", activeSettlement.id)
+        .eq("household_id", household.id)
         .gte("receipt_date", startDate)
         .lte("receipt_date", endDate)
         .order("receipt_date", { ascending: false });
       if (error) throw error;
       return data;
     },
-    enabled: !!activeSettlement,
+    enabled: !!household,
   });
 }
 

@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { LayoutGrid, Receipt, Users, Tag, TrendingUp, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useHousehold } from "@/contexts/HouseholdContext";
-import { useMonthlyReceipts, useSplitRatios } from "@/hooks/useBudgetData";
+import { useSettlementBalances } from "@/hooks/useSettlementBalances";
 import { useSettlementContext } from "@/contexts/SettlementContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,27 +43,12 @@ export function AppSidebar({ onNavigate, variant = "fixed" }: AppSidebarProps = 
   const { household, members } = useHousehold();
   const { user } = useAuth();
   const { activeSettlement } = useSettlementContext();
-  const { data: receipts } = useMonthlyReceipts();
-  const { data: splitRatios } = useSplitRatios();
+  const { balances, totalSpent } = useSettlementBalances();
 
-  const paidByUser = receipts?.reduce((acc, receipt) => {
-    if (receipt.paid_by_user) {
-      const items = receipt.items ?? [];
-      const total = items.length > 0
-        ? items.filter(i => i.included_in_totals !== false).reduce((s, i) => s + Number(i.price), 0)
-        : Number(receipt.total_amount);
-      acc[receipt.paid_by_user] = (acc[receipt.paid_by_user] || 0) + total;
-    }
-    return acc;
-  }, {} as Record<string, number>) || {};
-
-  const totalSpent = Object.values(paidByUser).reduce((s, a) => s + a, 0);
-
-  const getRatio = (userId: string) => {
-    const ratio = splitRatios?.find(r => r.user_id === userId);
-    if (ratio) return Number(ratio.ratio);
-    return members.length > 0 ? 100 / members.length : 50;
-  };
+  // The roster below is the household's; the numbers are the active
+  // settlement's. A member who is not on the settlement has no balance in it
+  // and shows no figure, rather than being charged a share of it.
+  const balanceFor = (userId: string) => balances.find(b => b.userId === userId);
 
   const getMemberName = (m: typeof members[0]) =>
     m.profile?.display_name || m.profile?.email?.split("@")[0] || "Ukjent";
@@ -102,9 +87,7 @@ export function AppSidebar({ onNavigate, variant = "fixed" }: AppSidebarProps = 
         {members.length > 0 && (
           <div className="mt-1.5 flex flex-col gap-0.5">
             {members.map((m, idx) => {
-              const paid = paidByUser[m.user_id] || 0;
-              const shouldPay = totalSpent * (getRatio(m.user_id) / 100);
-              const delta = paid - shouldPay;
+              const delta = balanceFor(m.user_id)?.balance;
               const color = MEMBER_COLORS[idx % MEMBER_COLORS.length];
               const name = getMemberName(m);
               const isMe = m.user_id === user?.id;
@@ -120,7 +103,7 @@ export function AppSidebar({ onNavigate, variant = "fixed" }: AppSidebarProps = 
                   <span className="flex-1 text-[12.5px] truncate">
                     {name.split(" ")[0]}{isMe && <span className="text-muted-foreground"> (du)</span>}
                   </span>
-                  {totalSpent > 0 && (
+                  {totalSpent > 0 && delta !== undefined && (
                     <span
                       className="text-[11.5px] font-semibold tabular-nums"
                       style={{ color: delta >= 0 ? "hsl(145 55% 38%)" : "hsl(0 65% 50%)" }}

@@ -3,6 +3,7 @@ import { LayoutGrid, Receipt, Users, Tag, TrendingUp, Plus } from "lucide-react"
 import { cn } from "@/lib/utils";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useSettlementBalances } from "@/hooks/useSettlementBalances";
+import { SettlementSwitcher } from "@/components/SettlementSwitcher";
 import { useSettlementContext } from "@/contexts/SettlementContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -40,7 +41,7 @@ interface AppSidebarProps {
 
 export function AppSidebar({ onNavigate, variant = "fixed" }: AppSidebarProps = {}) {
   const location = useLocation();
-  const { household, members } = useHousehold();
+  const { members } = useHousehold();
   const { user } = useAuth();
   const { activeSettlement } = useSettlementContext();
   const { balances, totalSpent } = useSettlementBalances();
@@ -72,16 +73,12 @@ export function AppSidebar({ onNavigate, variant = "fixed" }: AppSidebarProps = 
         <span className="font-semibold text-sm tracking-tight">BudgetBandz</span>
       </div>
 
-      {/* Household + members */}
+      {/* Settlement switcher + members */}
       <div className="px-3 mb-2">
         <p className="text-[10.5px] font-semibold tracking-widest text-muted-foreground px-1.5 pb-1.5 uppercase">
           Oppgjør
         </p>
-        <button className="w-full flex items-center gap-2.5 bg-secondary border border-border rounded-lg px-2.5 py-2 text-[13px] font-medium text-left">
-          <span className="w-2 h-2 rounded-full bg-[hsl(160_60%_45%)] flex-shrink-0" />
-          <span className="flex-1 truncate">{household?.name || "Husholdning"}</span>
-          <span className="text-muted-foreground text-[11px]">▾</span>
-        </button>
+        <SettlementSwitcher variant="sidebar" />
 
         {/* Member rows */}
         {members.length > 0 && (

@@ -14,13 +14,25 @@ export function SettlementProvider({ children }: { children: ReactNode }) {
   const { data: settlements = [], isLoading } = useSettlements();
   const [activeSettlement, setActiveSettlementState] = useState<Settlement | null>(null);
 
-  // Sett aktivt oppgjør fra localStorage eller første i listen
+  // Sett aktivt oppgjør fra localStorage eller første i listen.
+  //
+  // useSettlements returns active settlements only, so closing the active one
+  // removes it from this list. Bailing out on an empty list (as this did) left
+  // activeSettlement pointing at a closed settlement indefinitely, and the
+  // stored id kept resolving to nothing on every reload.
   useEffect(() => {
-    if (settlements.length === 0) return;
+    if (settlements.length === 0) {
+      setActiveSettlementState(null);
+      localStorage.removeItem("activeSettlementId");
+      return;
+    }
 
     const savedId = localStorage.getItem("activeSettlementId");
-    const saved = settlements.find(s => s.id === savedId);
-    setActiveSettlementState(saved || settlements[0]);
+    const next = settlements.find(s => s.id === savedId) ?? settlements[0];
+    setActiveSettlementState(next);
+    // Write through, so a stale id does not silently resolve to a different
+    // settlement on each load.
+    if (next.id !== savedId) localStorage.setItem("activeSettlementId", next.id);
   }, [settlements]);
 
   const setActiveSettlement = (settlement: Settlement) => {

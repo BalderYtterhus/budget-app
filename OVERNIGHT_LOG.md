@@ -1,23 +1,28 @@
 # Overnight work log — 2026-08-02 → 08-03
 
-Branch: `overnight-fixes` (off `main` @ `ea273ff`)
-**All ✅ items complete.** 🔴 #1 settled 2026-08-03; four 🔴 decisions remain —
-see bottom.
+Branch: `overnight-fixes`. **All ✅ items complete and merged.** 🔴 #1 settled
+2026-08-03; four 🔴 decisions remain — see bottom.
 
 ---
 
 ## Status at a glance
 
-| | Item | Commit |
+Tracked by **PR, not commit SHA** — every SHA this log originally cited is now
+unreachable from `main`. Both #12 and #13 were squash-merged, which replaced all
+of them. PR numbers survive that; hashes do not.
+
+| | Item | Merged via |
 |---|---|---|
-| ✅ | Restore 3 commits dropped by the #11 squash | `984d702` |
-| ✅ | Duplicate join RPC overwriting invite success | `6ef6022` |
-| ✅ | Query failures no longer look like empty data | `f5f64f1` |
-| ✅ | Mobile navigation drawer (+ mobile header layout) | `b6cac65` |
-| ✅ | Each sidebar route gets its own page | `11988fb` |
-| ✅ | Six real TypeScript errors resolved | `4ab771a` |
-| ✅ | Lint cleanup — dead code, `any`, stale closure | `7406163` `37efa08` `cb9c476` |
-| ✅ | Receipts savable into unreadable state — settled, see 🔴 #1 | `e83e02e` |
+| ✅ | Restore 3 commits dropped by the #11 squash | #12 |
+| ✅ | Duplicate join RPC overwriting invite success | #12 |
+| ✅ | Query failures no longer look like empty data | #12 |
+| ✅ | Mobile navigation drawer (+ mobile header layout) | #12 |
+| ✅ | Each sidebar route gets its own page | #12 |
+| ✅ | Six real TypeScript errors resolved | #12 |
+| ✅ | Lint cleanup — dead code, `any`, stale closure | #12 |
+| ✅ | Receipts savable into unreadable state — settled, see 🔴 #1 | #13 |
+| ✅ | `settlement_members` ignored by all three balance copies | #13 |
+| ✅ | CLAUDE.md content dropped by the #12 squash, recovered | #13 |
 | 🔴 | `/oppgjor` beyond display | needs you |
 | 🔴 | shadcn peer deps | needs you |
 | 🔴 | two `exhaustive-deps` that change behaviour | needs you |
@@ -286,16 +291,19 @@ whatever the intent was.
 
 ## Notes for tomorrow
 
-- The **squash-merge drop** has now bitten twice (#9, #11). Consider a merge
-  commit or rebase instead, or check `git log main..branch` is empty after merge.
-- The `QueryErrorState` branches are **unverified at runtime** — the one thing
-  from tonight I'd most want eyes on.
+- The **squash-merge drop** has bitten three times (#9, #11, #12). #12 lost the
+  whole of `docs: bring CLAUDE.md current`; #13 restored it. #13 itself squashed
+  cleanly but merged while a later commit was still being pushed, stranding the
+  avatar migration on the branch. Two habits fix both failure modes: merge-commit
+  or rebase instead of squash, and check `git log main..branch` is empty after.
+- The `QueryErrorState` branches are **unverified at runtime** — still the one
+  thing from the overnight run I'd most want eyes on.
 - **`SettlementSwitcher` is mounted nowhere** (found while verifying 🔴 #1;
   CLAUDE.md wrongly claimed it was in the header, now corrected). There are two
   active settlements and no UI to switch between them — only
   `localStorage.activeSettlementId` or the newest-active fallback. Cheapest
   remaining fix, and it is what makes settlements usable at all.
-- `supabase/migrations/20260514000004_profiles_avatar.sql` is **untracked** —
-  same repo/DB divergence the #11 squash caused. Commit it or confirm it is
-  meant to be local.
-- Branch pushed as `overnight-fixes`; no PR opened yet.
+- **No assign-to-settlement action** yet. Receipts outside the active settlement
+  are visible and badged after #13, but cannot be moved from the UI.
+- `.claude/worktrees/`, `budget app.zip` and `design_handoff/` are untracked and
+  look like gitignore candidates rather than things to commit.

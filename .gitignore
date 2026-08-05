@@ -23,3 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 .env.local
+
+# Claude Code scratch — worktrees run to hundreds of MB
+.claude/worktrees/
+
+# Local archives
+*.zip

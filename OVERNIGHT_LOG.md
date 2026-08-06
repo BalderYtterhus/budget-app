@@ -34,9 +34,22 @@ regenerated so the diagrams match the code.
 | 📋 | #14, #15 — deliberate, see below | — |
 | 🔴 | **New:** leaving/removing a member silently no-ops | needs you |
 
-**Health:** `tsc` clean apart from the 16 known shadcn peer-dep errors in
-`src/components/ui/`. Lint on every touched file is back to its pre-existing
-baseline — no new errors. Production build passes.
+**Health:** `npm run build` passes — `tsc -b` reports nothing but a `baseUrl`
+deprecation notice, and vite builds. Lint on every touched file is back to its
+pre-existing baseline: no new errors, and the three that remain
+(`react-refresh/only-export-components` in AppLayout, two
+`preserve-manual-memoization` in ReceiptList) all predate this session.
+
+One correction to `CLAUDE.md` while I am here: **the "16 TypeScript errors from
+never-installed shadcn peer deps" are not reported by this project's own
+toolchain.** Neither `tsc -b` nor `tsc --noEmit -p tsconfig.app.json` surfaces
+them. I checked it was not a stale `tsconfig.app.tsbuildinfo` by deleting the
+cache and adding a file importing a package that does not exist — still no
+error, so this config does not emit TS2307 at all. The peer deps really are
+absent (`cmdk`, `vaul`, `react-day-picker` and the rest are in neither
+`package.json` nor `node_modules`) and `src/components/ui/` really does import
+them, so the install-or-delete question is still open — but it is not currently
+costing you a red build, which is how the last log framed it.
 
 ## What changed
 

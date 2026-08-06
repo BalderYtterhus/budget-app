@@ -1,8 +1,9 @@
 # BudgetBandz — actual user-facing wiring
 
-Traced from the codebase on 2026-08-06 (branch `main`, HEAD `6b8e17f`). This documents
-**what the code does**, not what the design intends. Where the two disagree, the code wins
-and the gap is noted in [Issues found](#issues-found).
+Traced from the codebase, then **updated 2026-08-06 after the fixes on
+`overnight-fixes`** (see [OVERNIGHT_LOG.md](../OVERNIGHT_LOG.md)). This documents **what the
+code does**, not what the design intends. Where the two disagree, the code wins and the gap
+is noted in [Issues](#issues--status).
 
 ## Legend
 
@@ -16,74 +17,63 @@ and the gap is noted in [Issues found](#issues-found).
 Edge labels are the actual trigger: a click handler, a `<Link to>`, a `<Navigate>`, a form
 submit, or a redirect.
 
+**No red nodes remain.** The one grey node (`Settlement.tsx`) is a deliberate hold — see
+[#8](#-deliberate-no-change).
+
 ---
 
 ## 1. Navigation structure — routes and nav wiring
 
-Every route in `src/App.tsx`, what actually renders, and how you get there.
+Every route in `src/App.tsx`, what actually renders, and how you get there. All seven
+authenticated routes now go through the same provider stack.
 
 ```mermaid
 flowchart TD
     classDef ok fill:#2f6f4e,stroke:#1d4732,color:#fff
     classDef cond fill:#8a6d1f,stroke:#5c4813,color:#fff
-    classDef bad fill:#8c2f2f,stroke:#5c1f1f,color:#fff
-    classDef orphan fill:#4a4a4a,stroke:#2e2e2e,color:#ddd
 
     BROWSER(["Browser URL"]) --> ROUTER{"BrowserRouter<br/>App.tsx"}
 
     ROUTER -->|"/auth"| AUTH["/auth → Auth.tsx<br/><i>no layout</i>"]
     ROUTER -->|"/install"| INSTALL["/install → Install.tsx<br/><i>no layout</i>"]
     ROUTER -->|"/join?token="| JOIN["/join → JoinHousehold.tsx<br/><i>no layout</i>"]
-    ROUTER -->|"/"| GUARD
-    ROUTER -->|"/kvitteringer"| GUARD
-    ROUTER -->|"/oppgjor"| GUARD
-    ROUTER -->|"/kategorier"| GUARD
-    ROUTER -->|"/rapporter"| GUARD
-    ROUTER -->|"/store-comparison"| GUARD
-    ROUTER -->|"/prisdatabase"| GUARD2["RequireAuth<br/><i>no HouseholdProvider</i>"]
-    ROUTER -->|"* fallback"| NF["NotFound.tsx<br/>404, English copy"]
+    ROUTER -->|"7 authed routes"| GUARD
+    ROUTER -->|"* fallback"| NF["NotFound.tsx<br/>404 — see diagram 5"]
 
     GUARD["RequireAuth →<br/>HouseholdProvider →<br/>SettlementProvider"]
     GUARD -->|"user == null"| AUTH
-    GUARD --> IDX["/ → Index.tsx<br/>AppLayout 'Oversikt'"]
-    GUARD --> RCP["/kvitteringer → Receipts.tsx<br/>AppLayout 'Kvitteringer'"]
-    GUARD --> OPP["/oppgjor → Oppgjor.tsx<br/>AppLayout 'Oppgjør'"]
-    GUARD --> KAT["/kategorier → Categories.tsx<br/>AppLayout 'Kategorier'"]
-    GUARD --> RAP["/rapporter → Reports.tsx<br/>AppLayout 'Rapporter'"]
-    GUARD --> SCMP["/store-comparison<br/>StoreComparison.tsx<br/><i>own chrome, no AppLayout</i>"]
-    GUARD2 --> PRIS["/prisdatabase → PrisDatabase.tsx<br/><i>own chrome, no AppLayout</i>"]
+    GUARD --> HHGATE{"AppLayout:<br/>household?"}
+    HHGATE -->|"null"| NOHH["NoHousehold<br/>create or join"]
+    HHGATE -->|"ok"| IDX["/ → Index.tsx"]
+    HHGATE -->|"ok"| RCP["/kvitteringer → Receipts.tsx"]
+    HHGATE -->|"ok"| OPP["/oppgjor → Oppgjor.tsx"]
+    HHGATE -->|"ok"| KAT["/kategorier → Categories.tsx"]
+    HHGATE -->|"ok"| RAP["/rapporter → Reports.tsx"]
+    GUARD --> SCMP["/store-comparison<br/><i>own chrome + back arrow</i>"]
+    GUARD --> PRIS["/prisdatabase<br/><i>own chrome + back arrow</i>"]
 
-    NF -->|"'Return to Home' &lt;a href&gt;"| IDX
+    NOHH -->|"Opprett → insert household<br/>+ membership, refetch"| IDX
+    NOHH -->|"Bli med → parse token"| JOIN
+    NOHH -->|"Logg ut"| AUTH
 
-    class AUTH,INSTALL,JOIN,IDX,RCP,KAT,RAP,GUARD,GUARD2,SCMP,PRIS,ROUTER,BROWSER ok
-    class OPP cond
-    class NF bad
+    class AUTH,INSTALL,JOIN,IDX,RCP,OPP,KAT,RAP,GUARD,SCMP,PRIS,ROUTER,BROWSER,NF,NOHH,HHGATE ok
 ```
 
 ### Sidebar and header — where each control actually goes
 
-`AppSidebar` renders identically on desktop (fixed) and mobile (inside a `Sheet` drawer).
-
 ```mermaid
 flowchart LR
     classDef ok fill:#2f6f4e,stroke:#1d4732,color:#fff
-    classDef cond fill:#8a6d1f,stroke:#5c4813,color:#fff
-    classDef bad fill:#8c2f2f,stroke:#5c1f1f,color:#fff
-    classDef orphan fill:#4a4a4a,stroke:#2e2e2e,color:#ddd
 
     subgraph SB["AppSidebar"]
         SW["SettlementSwitcher<br/>variant='sidebar'"]
-        INV["'+ Inviter medlem'<br/><b>no onClick</b>"]
-        N1["Oversikt"]
-        N2["Kvitteringer"]
-        N3["Oppgjør"]
-        N4["Kategorier"]
-        N5["Rapporter"]
-        FOOT["Profile footer<br/>label: 'Innstillinger'<br/><b>calls supabase.auth.signOut()</b>"]
+        INV["'+ Inviter medlem'"]
+        NAV["Oversikt · Kvitteringer · Oppgjør<br/>Kategorier · Rapporter"]
+        FOOT["Profile footer<br/>'Innstillinger'"]
     end
 
     subgraph HD["AppLayout header"]
-        SEARCH["'Søk i kvitteringer…' + ⌘K<br/><b>no value / no onChange</b>"]
+        SEARCH["'Søk i kvitteringer…' + ⌘K"]
         MS["MonthSelector"]
         CRB["CategoryReviewButton"]
         EXP["ExportData"]
@@ -91,30 +81,27 @@ flowchart LR
         UM["UserMenu"]
     end
 
-    N1 -->|"Link to='/'"| P1["/"]
-    N2 -->|"Link to='/kvitteringer'"| P2["/kvitteringer"]
-    N3 -->|"Link to='/oppgjor'"| P3["/oppgjor"]
-    N4 -->|"Link to='/kategorier'"| P4["/kategorier"]
-    N5 -->|"Link to='/rapporter'"| P5["/rapporter"]
-    SW -->|"dropdown: switch / create / close / reopen"| SWD["settlement state<br/>+ localStorage"]
-    INV -.->|"nothing happens"| DEAD["∅"]
-    FOOT -->|"immediate sign-out, no confirm"| AUTHP["/auth"]
+    NAV -->|"Link to= each route"| PAGES["the five shell routes"]
+    SW -->|"switch / create / close / reopen"| SWD["settlement state<br/>+ localStorage"]
+    INV -->|"opens InviteMemberDialog"| INVD["HouseholdInvite<br/>token, expiry, regenerate"]
+    FOOT -->|"opens HouseholdSettingsDialog"| HSD
 
+    SEARCH -->|"Enter → navigate<br/>/kvitteringer?q=…"| RLQ["ReceiptList reads ?q=<br/>seeds its filter"]
+    SEARCH -->|"⌘K / Ctrl+K focuses"| SEARCH
     MS -->|"Popover: pick month/year"| MCTX["MonthContext"]
     CRB -->|"Sheet: bulk category fixes"| CRS["CategoryReview sheet"]
-    EXP -->|"Dropdown → exportToCSV()"| CSV["CSV download"]
+    EXP -->|"exportToCSV()"| CSV["CSV download"]
     BS -->|"Dialog: budget + CategorySection"| BSD["Budget dialog"]
-    UM -->|"Husholdningsinnstillinger"| HSD["Household settings dialog<br/>rename, invite, members,<br/>consent, leave"]
-    UM -->|"Link to='/prisdatabase'"| PRISP["/prisdatabase"]
+    UM -->|"Husholdningsinnstillinger"| HSD["rename · invite · members<br/>consent · leave"]
+    UM -->|"Prisdatabase"| PRISP["/prisdatabase"]
+    UM -->|"Installer appen"| INSTP["/install"]
     UM -->|"theme toggle"| TH["light / dark"]
-    UM -->|"Logg ut"| AUTHP
-    SEARCH -.->|"nothing happens"| DEAD
+    UM -->|"Logg ut"| AUTHP["/auth"]
 
-    class SW,N1,N2,N3,N4,N5,P1,P2,P3,P4,P5,SWD,MS,CRB,EXP,BS,UM,MCTX,CRS,CSV,BSD,HSD,PRISP,TH,AUTHP ok
-    class INV,SEARCH,FOOT,DEAD bad
+    class SW,INV,NAV,FOOT,SEARCH,MS,CRB,EXP,BS,UM,PAGES,SWD,INVD,HSD,RLQ,MCTX,CRS,CSV,BSD,PRISP,INSTP,TH,AUTHP ok
 ```
 
-### Routes with no nav entry
+### Routes outside the sidebar — all now have an entry point
 
 ```mermaid
 flowchart LR
@@ -122,20 +109,21 @@ flowchart LR
     classDef cond fill:#8a6d1f,stroke:#5c4813,color:#fff
     classDef orphan fill:#4a4a4a,stroke:#2e2e2e,color:#ddd
 
-    SL["ShoppingList<br/>(dashboard only)"] -->|"items.length > 0"| SC["StoreComparison card"]
-    SC -->|"'Detaljer' Link<br/><i>only rendered when<br/>price history exists</i>"| SCP["/store-comparison"]
+    SL["ShoppingList<br/>(dashboard)"] -->|"items.length > 0"| SC["StoreComparison card"]
+    SC -->|"'Detaljer' — now on BOTH<br/>the populated and the<br/>no-price-history branch"| SCP["/store-comparison"]
     SCP -->|"'Tilbake til handlelisten'"| HOME["/"]
 
     UM2["UserMenu"] -->|"Prisdatabase"| PD["/prisdatabase"]
+    UM2 -->|"Installer appen<br/><b>permanent entry</b>"| INST["/install"]
     PD -->|"ArrowLeft"| HOME
-
-    IP["InstallPrompt<br/><i>App-level, fires only on<br/>beforeinstallprompt or<br/>iOS+Safari, and not<br/>dismissed in last 7 days</i>"] -->|"'Se hvordan'"| INST["/install"]
     INST -->|"'Tilbake'"| HOME
 
-    SETT["Settlement.tsx<br/>split-ratio editor + close flow<br/><b>imported by nothing</b>"]
+    IP["InstallPrompt<br/><i>opportunistic: beforeinstallprompt<br/>or iOS+Safari, suppressed 7 days<br/>after dismissal — intentional</i>"] -->|"'Se hvordan'"| INST
 
-    class SL,SC,HOME,UM2,PD,INST ok
-    class SCP,IP cond
+    SETT["Settlement.tsx<br/>split-ratio editor<br/><b>held, not deleted</b><br/>writes household split_ratios,<br/>must target settlement_members<br/>before mounting — 🔴 #2"]
+
+    class SL,SC,SCP,HOME,UM2,PD,INST ok
+    class IP cond
     class SETT orphan
 ```
 
@@ -146,114 +134,94 @@ flowchart LR
 ```mermaid
 flowchart TD
     classDef ok fill:#2f6f4e,stroke:#1d4732,color:#fff
-    classDef cond fill:#8a6d1f,stroke:#5c4813,color:#fff
-    classDef bad fill:#8c2f2f,stroke:#5c1f1f,color:#fff
 
     START(["Visit any protected route"]) --> RA{"RequireAuth<br/>user?"}
     RA -->|"loading"| SPIN["spinner"]
     RA -->|"no"| AUTH["/auth<br/>Tabs: Logg inn | Registrer"]
-    RA -->|"yes"| APP["AppLayout + page"]
+    RA -->|"yes"| HH{"AppLayout<br/>household?"}
 
-    AUTH -->|"submit login<br/>signIn()"| SESS["Supabase session"]
-    AUTH -->|"submit signup<br/>signUp()"| MAIL["toast: 'Sjekk e-posten din'<br/>email confirmation"]
-    MAIL -.->|"user clicks link in email"| SESS
-    SESS --> PEND{"sessionStorage<br/>pending_invite_token?"}
-    PEND -->|"yes"| JOINT["/join?token=…"]
-    PEND -->|"no"| HOME["Navigate to '/'"]
+    AUTH -->|"submit login"| SESS["Supabase session"]
+    AUTH -->|"submit signup"| MAIL["toast: 'Sjekk e-posten din'"]
+    MAIL -.->|"confirmation link"| SESS
+    SESS --> PEND{"pending_invite_token<br/>in sessionStorage?"}
+    PEND -->|"yes"| JOINP["/join?token=…"]
+    PEND -->|"no"| HH
 
-    HOME --> TRIG["DB trigger on_auth_user_created<br/>created household + profile<br/><i>no in-app create-household UI</i>"]
-    TRIG --> APP
-    APP --> CONSENT{"ConsentModal<br/>price_sharing_enabled IS NULL?"}
-    CONSENT -->|"yes — not dismissible"| CHOICE["'Godta' / 'Nei takk'<br/>→ profiles.price_sharing_enabled"]
+    HH -->|"present<br/>(trigger on_auth_user_created)"| APP["AppLayout + page"]
+    HH -->|"null — trigger failed,<br/>or left a household"| NOHH["NoHousehold"]
+
+    NOHH -->|"Opprett husholdning<br/>insert households +<br/>household_memberships"| APP
+    NOHH -->|"Bli med: paste link<br/>→ uuid extracted"| JOINP
+    NOHH -->|"Logg ut"| AUTH
+
+    APP --> CONSENT{"price_sharing_enabled<br/>IS NULL?"}
+    CONSENT -->|"yes"| CHOICE["ConsentModal<br/>'Godta' / 'Nei takk'"]
     CONSENT -->|"no"| DASH["Dashboard usable"]
     CHOICE --> DASH
 
-    INVITE["Invite link<br/>{origin}/join?token=…<br/>from HouseholdInvite in<br/>UserMenu → Husholdningsinnstillinger"] --> JOINP["/join"]
+    INVITE["Invite link {origin}/join?token=…<br/>from HouseholdInvite — reachable via<br/>UserMenu, the sidebar '+ Inviter medlem',<br/>and the /oppgjor empty state"] --> JOINP
     JOINP --> AUTHED{"authenticated?"}
-    AUTHED -->|"no"| NEEDAUTH["status: need_auth<br/>'Logg inn / Registrer deg'"]
-    NEEDAUTH -->|"stores token in sessionStorage<br/>navigate('/auth')"| AUTH
+    AUTHED -->|"no"| NEEDAUTH["'Logg inn / Registrer deg'<br/>stores token, → /auth"]
+    NEEDAUTH --> AUTH
     AUTHED -->|"yes"| RPC["rpc join_household_via_invite"]
-    RPC -->|"success"| OK["'Velkommen!' →<br/>window.location.href = '/'"]
-    RPC -->|"already_member"| OK
-    RPC -->|"expired"| EXP["'Lenken har utløpt'<br/>→ navigate('/')"]
-    RPC -->|"error / no token"| ERR["'Noe gikk galt'<br/>→ navigate('/')"]
-    OK --> APP
-    EXP --> APP
-    ERR --> APP
+    RPC -->|"success / already_member"| OK["'Velkommen!' → /"]
+    RPC -->|"expired"| EXPD["'Lenken har utløpt' → /"]
+    RPC -->|"error"| ERR["'Noe gikk galt' → /"]
+    OK --> HH
+    EXPD --> HH
+    ERR --> HH
 
-    JOINT --> RPC
-
-    NOHH["User with no<br/>household_memberships row<br/>(trigger failed / left household)"] --> BROKEN["household = null.<br/>App still renders 'Husholdning'.<br/>No recovery UI; receipt upload<br/>hits household!.id and throws."]
-
-    class START,RA,AUTH,SESS,MAIL,PEND,JOINT,HOME,TRIG,APP,CONSENT,CHOICE,DASH,INVITE,JOINP,AUTHED,NEEDAUTH,RPC,OK,EXP,ERR,SPIN ok
-    class NOHH cond
-    class BROKEN bad
+    class START,RA,AUTH,SESS,MAIL,PEND,JOINP,HH,APP,NOHH,CONSENT,CHOICE,DASH,INVITE,AUTHED,NEEDAUTH,RPC,OK,EXPD,ERR,SPIN ok
 ```
 
 ---
 
 ## 3. Receipt: scan → OCR → categorise → save
 
-The upload `Sheet` lives in `AppLayout` and is opened through the `useReceiptUpload()`
-context, so only the two pages that render a CTA can start the flow.
+Unchanged by this round of fixes — it had no dead ends. Reproduced so the map stays whole.
 
 ```mermaid
 flowchart TD
     classDef ok fill:#2f6f4e,stroke:#1d4732,color:#fff
     classDef cond fill:#8a6d1f,stroke:#5c4813,color:#fff
-    classDef bad fill:#8c2f2f,stroke:#5c1f1f,color:#fff
 
-    subgraph ENTRY["Entry points (only these two pages)"]
-        E1["/ — 'Legg til kvittering' / 'Manuelt'"]
-        E2["/kvitteringer — same two buttons"]
+    subgraph ENTRY["Entry points — / and /kvitteringer"]
+        E1["'Legg til kvittering' → openUpload(false)"]
+        E2["'Manuelt' → openUpload(true)"]
     end
-    E1 -->|"openUpload(false)"| SHEET
-    E1 -->|"openUpload(true)"| SHEETM
-    E2 -->|"openUpload(false)"| SHEET
-    E2 -->|"openUpload(true)"| SHEETM
+    E1 --> SHEET["Bottom Sheet → ReceiptUpload<br/>state = 'idle'"]
+    E2 --> REVIEW
 
-    SHEET["Bottom Sheet → ReceiptUpload<br/>state = 'idle'"]
-    SHEETM["Bottom Sheet → ReceiptUpload<br/>startManual → state = 'review'"]
-
-    SHEET -->|"'Ta bilde' (capture=environment)"| PROC
-    SHEET -->|"'Velg bilde' (gallery)"| PROC
-    SHEET -->|"drag & drop image"| PROC
+    SHEET -->|"'Ta bilde' / 'Velg bilde' / drag & drop"| PROC["processImage()<br/>compress to ≤1600px, q0.85"]
     SHEET -->|"'Eller skriv inn manuelt uten bilde'"| REVIEW
 
-    PROC["processImage()<br/>compress to ≤1600px, q0.85"]
-    PROC --> UP["state='uploading'<br/>Storage upload<br/>receipts/{household_id}/{uuid}"]
+    PROC --> UP["Storage upload<br/>receipts/{household_id}/{uuid}"]
     UP --> SIGN["createSignedUrl — 1 year"]
-    SIGN --> PARSE["state='parsing'<br/>invoke Edge fn 'parse-receipt'<br/>(Anthropic vision)"]
+    SIGN --> PARSE["invoke Edge fn 'parse-receipt'<br/>(Anthropic vision)"]
 
-    PARSE -->|"ocrData.parseError"| WARN1["destructive toast:<br/>'Fyll inn manuelt'"]
-    PARSE -->|"ocrData.totalMismatch"| WARN2["toast: 'Sjekk totalbeløpet'"]
-    PARSE -->|"throw"| FAIL["toast + state='idle'"]
+    PARSE -->|"parseError"| WARN1["toast: 'Fyll inn manuelt'"]
+    PARSE -->|"totalMismatch"| WARN2["toast: 'Sjekk totalbeløpet'"]
+    PARSE -->|"throw"| FAIL["toast + back to 'idle'"]
     WARN1 --> CAT
     WARN2 --> CAT
     PARSE -->|"ok"| CAT
 
-    CAT{"per item: AI returned<br/>a categoryId?"}
-    CAT -->|"yes"| SYS["computeSystemConfidence()<br/>+ reconcileConfidence()<br/>→ verdict, needsReview"]
-    CAT -->|"no — AI abstained"| FUZZ["findCategoryForItem()<br/>fuzzy match on item_category_mappings<br/>threshold 0.6<br/>ai_predicted_category_id = null"]
+    CAT{"AI returned a categoryId<br/>for this item?"}
+    CAT -->|"yes"| SYS["computeSystemConfidence()<br/>+ reconcileConfidence()"]
+    CAT -->|"no — abstained"| FUZZ["fuzzy match on mappings, 0.6<br/>ai_predicted_category_id = null"]
     SYS --> REVIEW
     FUZZ --> REVIEW
 
-    REVIEW["state='review'<br/>store · date · total* · betalt av* · etikett<br/>editable item rows: name, qty, price, category<br/>confidence % chip · 'ai_overconfident' warning<br/>+ Legg til vare / 🗑 remove"]
+    REVIEW["state='review'<br/>store · date · total* · betalt av* · etikett<br/>editable rows: name, qty, price, category"]
+    REVIEW -->|"'Avbryt' / X"| RESET["reset → 'idle'"]
+    REVIEW -->|"'Lagre kvittering'"| SAVE["useSaveReceipt<br/>settlement_id = activeSettlement?.id ?? null"]
+    SAVE --> DB["receipts + receipt_items<br/>learn mappings<br/>submit-price-data"]
+    DB --> RM["useRemoveMatchedItems"]
+    RM --> DONE["'Kvittering lagret!'<br/>Sheet closes"]
+    SAVE -->|"throw"| BACK["toast + back to 'review'"]
+    DONE --> LISTS["query invalidation →<br/>every list refreshes"]
 
-    REVIEW -->|"change a category"| MARK["userReviewed = true<br/>needsReview = false"]
-    MARK --> REVIEW
-    REVIEW -->|"'Avbryt' or X"| RESET["reset() → state='idle'"]
-    REVIEW -->|"'Lagre kvittering'<br/><i>disabled unless total>0 and payer set</i>"| SAVE
-
-    SAVE["state='saving'<br/>useSaveReceipt.mutateAsync<br/>settlement_id = activeSettlement?.id ?? null"]
-    SAVE --> DB["receipts + receipt_items<br/>auto-learn item_category_mappings<br/>invoke 'submit-price-data' (consent checked server-side)"]
-    DB --> RM["useRemoveMatchedItems<br/>strikes matching shopping-list items<br/><i>failure logged, does not block</i>"]
-    RM --> DONE["state='success' + toast<br/>onSuccess() closes Sheet after 1.5s<br/>internal reset after 2s"]
-    SAVE -->|"throw"| BACK["toast + back to state='review'"]
-
-    DONE --> LISTS["React Query invalidation →<br/>ReceiptList · SpendingOverview ·<br/>CategoryBreakdown · SpendingTrend ·<br/>SettlementOversikt all refresh"]
-
-    class E1,E2,SHEET,SHEETM,PROC,UP,SIGN,PARSE,CAT,SYS,REVIEW,MARK,SAVE,DB,RM,DONE,LISTS,RESET,BACK ok
+    class E1,E2,SHEET,PROC,UP,SIGN,PARSE,CAT,SYS,REVIEW,SAVE,DB,RM,DONE,LISTS,RESET,BACK ok
     class WARN1,WARN2,FAIL,FUZZ cond
 ```
 
@@ -262,29 +230,23 @@ flowchart TD
 ```mermaid
 flowchart LR
     classDef ok fill:#2f6f4e,stroke:#1d4732,color:#fff
-    classDef cond fill:#8a6d1f,stroke:#5c4813,color:#fff
-    classDef bad fill:#8c2f2f,stroke:#5c1f1f,color:#fff
 
-    RL["ReceiptList<br/>(dashboard + /kvitteringer)"] -->|"click row"| DLG["Detail Dialog<br/>items, payer, image"]
+    RL["ReceiptList<br/>(dashboard + /kvitteringer)"] -->|"click row"| DLG["Detail Dialog"]
     DLG -->|"pencil"| EDIT["inline edit:<br/>store, date, total, label"]
+    DLG -->|"payer select"| PAY["useUpdateReceiptPayer"]
+    DLG -->|"<b>oppgjør select</b>"| SET["useUpdateReceiptSettlement<br/>move in / out / 'Ikke i oppgjør'"]
     DLG -->|"image click"| FULL["fullscreen image"]
     DLG -->|"trash → AlertDialog"| DEL["useDeleteReceipt"]
-    DLG -->|"payer select"| PAY["useUpdateReceiptPayer"]
-    RL -->|"search box"| FILT["client-side filter<br/>store / label"]
+    RL -->|"own search box<br/>(also shown when ?q= is set)"| FILT["filter: store / label"]
+    RL -->|"badge 'Ikke i oppgjør'"| DLG
 
-    RL --> BADGE["Settlement badge:<br/>'Ikke i oppgjør' / other settlement name"]
-    BADGE -.->|"display only — no way to assign"| NOASSIGN["∅"]
-
-    CRB["CategoryReviewButton<br/>header, badge = needs_review count"] -->|"Sheet"| CRS["bulk re-categorise<br/>→ useUpdateItemCategory<br/>stamps reviewed_at"]
-
-    BS["BudgetSettings dialog"] -->|"per-category amounts + total"| SAVEB["useSaveBudget"]
+    CRB["CategoryReviewButton"] -->|"Sheet"| CRS["bulk re-categorise<br/>stamps reviewed_at"]
+    BS["BudgetSettings dialog"] --> SAVEB["useSaveBudget"]
     BS -->|"'Kopier fra forrige måned'"| COPY["useCopyBudgetFromPreviousMonth"]
-    BS --> CS["CategorySection (CRUD)<br/><i>also at /kategorier</i>"]
-    SAVEB --> OV["SpendingOverview:<br/>brukt · budsjettstatus · gjenstående"]
+    BS --> CS["CategorySection — also at /kategorier"]
+    SAVEB --> OV["SpendingOverview"]
 
-    class RL,DLG,EDIT,FULL,DEL,PAY,FILT,CRB,CRS,BS,SAVEB,COPY,CS,OV ok
-    class BADGE cond
-    class NOASSIGN bad
+    class RL,DLG,EDIT,PAY,SET,FULL,DEL,FILT,CRB,CRS,BS,SAVEB,COPY,CS,OV ok
 ```
 
 ---
@@ -294,74 +256,108 @@ flowchart LR
 ```mermaid
 flowchart TD
     classDef ok fill:#2f6f4e,stroke:#1d4732,color:#fff
-    classDef cond fill:#8a6d1f,stroke:#5c4813,color:#fff
-    classDef bad fill:#8c2f2f,stroke:#5c1f1f,color:#fff
     classDef orphan fill:#4a4a4a,stroke:#2e2e2e,color:#ddd
 
     CTX["SettlementProvider<br/>active = localStorage.activeSettlementId<br/>?? settlements[0]; cleared when list empty"]
 
-    CTX --> SWITCH["SettlementSwitcher (sidebar)<br/><b>now mounted in AppSidebar</b>"]
+    CTX --> SWITCH["SettlementSwitcher — mounted in AppSidebar"]
     SWITCH -->|"click a settlement"| SETACT["setActiveSettlement + localStorage"]
-    SWITCH -->|"X on a row → AlertDialog"| CLOSE1["useCloseSettlement"]
-    SWITCH -->|"closed settlement row ↺"| REOPEN["useReopenSettlement"]
-    SWITCH -->|"'Legg til oppgjør' → Dialog"| CREATE1["useCreateSettlement<br/>all household members, equal ratios"]
+    SWITCH -->|"X → AlertDialog"| CLOSE1["useCloseSettlement"]
+    SWITCH -->|"closed row ↺"| REOPEN["useReopenSettlement"]
+    SWITCH -->|"'Legg til oppgjør'"| CREATE1["useCreateSettlement<br/>all members, equal ratios"]
     CREATE1 --> SETACT
 
-    CTX --> OVER["SettlementOversikt<br/>on / and /oppgjor"]
-    OVER -->|"members.length < 2"| NULLR["returns null →<br/>/oppgjor renders an empty page"]
-    OVER -->|"members ≥ 2"| CARD["useSettlementBalances:<br/>paid · ratio · balance · transactions<br/>warns on unassigned payers<br/>and on no active settlement"]
+    CTX --> OVER{"SettlementOversikt<br/>members ≥ 2?"}
+    OVER -->|"no, on / "| HIDE["card hides itself —<br/>nothing to settle"]
+    OVER -->|"no, on /oppgjor<br/>showEmptyState"| EMPTY["'Du er alene i husholdningen'<br/>→ Inviter medlem<br/>→ Gå til kvitteringer"]
+    OVER -->|"yes"| CARD["useSettlementBalances:<br/>paid · ratio · balance · transactions"]
+    EMPTY -->|"opens InviteMemberDialog"| INVD["invite link"]
+
     CARD -->|"'Avslutt' → AlertDialog"| CLOSE2["useCloseSettlement"]
-    CLOSE2 --> NEWD["Dialog 'Start nytt oppgjør'<br/>(name prefilled) or 'Hopp over'"]
+    CLOSE2 --> NEWD["'Start nytt oppgjør' / 'Hopp over'"]
     NEWD --> CREATE2["useCreateSettlement"]
     CREATE2 --> CTX
 
-    SETTC["Settlement.tsx<br/>split-ratio editor, useSaveSplitRatios,<br/>its own close flow<br/><b>rendered nowhere</b>"]
-
     RECEIPT["New receipt"] -->|"settlement_id = activeSettlement?.id ?? null"| CARD
-    ORPH["Receipt saved with no active settlement"] -->|"visible + counted in month totals"| CARD
-    ORPH -.->|"cannot be assigned to a settlement later"| NOFIX["∅"]
+    ORPH["Receipt with settlement_id = null"] -->|"visible + counted"| CARD
+    ORPH -->|"<b>detail dialog → oppgjør picker</b>"| MOVED["useUpdateReceiptSettlement<br/>now splittable"]
+    MOVED --> CARD
 
-    class CTX,SWITCH,SETACT,CLOSE1,REOPEN,CREATE1,OVER,CARD,CLOSE2,NEWD,CREATE2,RECEIPT ok
-    class ORPH cond
-    class NULLR,NOFIX bad
+    SETTC["Settlement.tsx — held<br/>only split-ratio editor in the repo,<br/>but writes the wrong table<br/>see 🔴 #2"]
+
+    class CTX,SWITCH,SETACT,CLOSE1,REOPEN,CREATE1,OVER,CARD,CLOSE2,NEWD,CREATE2,RECEIPT,ORPH,MOVED,EMPTY,HIDE,INVD ok
     class SETTC orphan
 ```
 
 ---
 
-## Issues found
+## 5. 404 and recovery states
 
-Nothing below has been changed — this is a list, not a patch.
+```mermaid
+flowchart TD
+    classDef ok fill:#2f6f4e,stroke:#1d4732,color:#fff
 
-### Broken / misleading controls
+    URL(["Unknown URL"]) --> NF{"NotFound<br/>authenticated?"}
+    NF -->|"loading"| SP["spinner"]
+    NF -->|"no"| BARE["Standalone card, Norwegian<br/>'Siden finnes ikke' + pathname"]
+    NF -->|"yes"| SHELL["Inside AppLayout —<br/>sidebar, month picker,<br/>upload sheet all still there"]
 
-1. **`AppSidebar` "+ Inviter medlem" has no `onClick`** — [AppSidebar.tsx:114](../src/components/AppSidebar.tsx#L114). Renders as a brand-coloured button under the member list and does nothing. The working invite UI is buried in UserMenu → Husholdningsinnstillinger → HouseholdInvite.
-2. **Sidebar profile footer is labelled "Innstillinger" but signs you out** — [AppSidebar.tsx:152-167](../src/components/AppSidebar.tsx#L152). `onClick={() => supabase.auth.signOut()}`, no confirmation, no settings dialog. The most destructive control in the sidebar is the one whose label promises the least.
-3. **Header search input is decorative** — [AppLayout.tsx:119-123](../src/components/AppLayout.tsx#L119). No `value`, no `onChange`, and the ⌘K hint has no key handler anywhere. A real search does exist, but it's the separate box inside `ReceiptList`.
+    BARE -->|"'Til oversikten'"| HOME["/"]
+    BARE -->|"'Logg inn'"| AUTH["/auth"]
+    SHELL -->|"'Til oversikten'"| HOME
+    SHELL -->|"'Til kvitteringer'"| RCP["/kvitteringer"]
+    SHELL -->|"sidebar nav"| ANY["any route"]
 
-### Dead ends
+    class URL,NF,BARE,SHELL,HOME,AUTH,RCP,ANY,SP ok
+```
 
-4. **`/oppgjor` renders an empty page for households with fewer than 2 members** — `SettlementOversikt` returns `null` at [SettlementOversikt.tsx:72](../src/components/SettlementOversikt.tsx#L72) and the page has no other content ([Oppgjor.tsx](../src/pages/Oppgjor.tsx)). You get a header and nothing else, with no explanation.
-5. **A receipt with no settlement can never be assigned to one.** `ReceiptList` badges it "Ikke i oppgjør" ([ReceiptList.tsx:57-60](../src/components/ReceiptList.tsx#L57)) and the detail dialog offers store/date/total/label/payer edits but no settlement picker.
-6. **No recovery if `household` is null.** `HouseholdProvider` sets it to null on a missing membership ([HouseholdContext.tsx:57-62](../src/contexts/HouseholdContext.tsx#L57)), the layout falls back to the string "Husholdning", and there is no create-or-join UI anywhere — household creation only happens via the `on_auth_user_created` DB trigger. `ReceiptUpload` then does `household!.id` at [ReceiptUpload.tsx:169](../src/components/ReceiptUpload.tsx#L169) and throws. Also reachable via "Forlat husholdning" in household settings.
-7. **`NotFound` is outside the app shell and in English** — [NotFound.tsx](../src/pages/NotFound.tsx). "Oops! Page not found" / "Return to Home" in an otherwise Bokmål-only UI, no sidebar, and a plain `<a href="/">` that does a full page reload.
+---
 
-### Orphans and hard-to-reach entry points
+## Issues — status
 
-8. **`Settlement.tsx` is imported by nothing** (confirmed by grep). 326 lines holding the split-ratio editor and its own close flow. The `TODO` in [Oppgjor.tsx](../src/pages/Oppgjor.tsx) explains why it's parked — it needs a decision, not a fix.
-9. **`/store-comparison` has one conditional entry point.** The "Detaljer" link lives in the `StoreComparison` card ([StoreComparison.tsx:65](../src/components/StoreComparison.tsx#L65)), which only renders on the dashboard, only when the shopping list is non-empty, and only when `comparison.stores.length > 0` — the no-price-history branch returns early without the link. No sidebar entry.
-10. **`/install` is reachable only through `InstallPrompt`**, which requires `beforeinstallprompt` (or iOS+Safari) and no dismissal in the last 7 days. Once dismissed, the route is only reachable by typing the URL.
-11. **`/prisdatabase` and `/store-comparison` are not in `navItems`** — the sidebar lists five routes; these two are reachable only from UserMenu and the shopping list respectively.
-12. **`InstallPrompt` says "Installer Food Buddy"** — [InstallPrompt.tsx:86](../src/components/InstallPrompt.tsx#L86). The app is BudgetBandz everywhere else; `Install.tsx` calls it "Budget App"; `Auth.tsx` calls it "Matbudsjett". Four names.
+All 15 from the original mapping, plus one found during the work.
 
-### Structural notes (not bugs, but they shape the map)
+### ✅ Fixed
 
-13. **`/prisdatabase` is the only authenticated route with no `HouseholdProvider`/`SettlementProvider`** ([App.tsx:91-98](../src/App.tsx#L91)). Fine today — the page queries `public_price_data` only — but any component added there that calls `useHousehold()` will throw.
-14. **`/store-comparison` and `/prisdatabase` don't use `AppLayout`**, so they have no sidebar, no month selector, and no upload sheet — only a back arrow to `/`.
-15. **The receipt-upload flow has exactly two entry points**, `/` and `/kvitteringer`. `/kategorier`, `/rapporter` and `/oppgjor` render no CTA even though `useReceiptUpload()` is available to them.
+| # | Issue | Commit |
+|---|---|---|
+| 1 | `AppSidebar` "+ Inviter medlem" had no `onClick` | `498f8a1` |
+| 2 | Sidebar footer labelled "Innstillinger" called `signOut()` | `498f8a1` |
+| 3 | Header search input and ⌘K hint were decorative | `f924c16` |
+| 4 | `/oppgjor` rendered blank for a household of one | `cc43aaf` |
+| 5 | A settlement-less receipt could never be assigned | `1d0b542` |
+| 6 | No recovery from a null `household` | `57a71c1` |
+| 7 | `NotFound` outside the shell, in English | `0c5e0d9` |
+| 9 | `/store-comparison` link missing from the empty branch | `ebc83b4` |
+| 10 | `/install` had no permanent entry point | `91daebb` |
+| 11 | Routes with no entry point in the UI | `91daebb` |
+| 12 | Four product names in user-facing copy | `8b417c8` |
+| 13 | `/prisdatabase` missing `HouseholdProvider` | `91daebb` |
 
-### CLAUDE.md is out of date on three points
+### 📋 Deliberate, no change
 
-- The known `/kvitteringer → <Index />` issue is **fixed** — `App.tsx` now maps each of the five sidebar routes to its own page component.
-- `SettlementSwitcher` is described as "written but mounted nowhere"; it **is** mounted, in `AppSidebar` at [AppSidebar.tsx:81](../src/components/AppSidebar.tsx#L81), and it also handles create/close/reopen.
-- `Settlement.tsx` mounted nowhere and the "no UI to assign a receipt to a settlement" gap are both still accurate.
+**#8 `Settlement.tsx` — held, not deleted.** Not superseded: `SettlementSwitcher` and
+`SettlementOversikt` cover switch/create/close/reopen, but the **split-ratio editor** exists
+only here, and settlements currently get equal ratios with no UI to change them. It is also
+not safe to mount as-is and says so in-file at
+[Settlement.tsx:58](../src/components/Settlement.tsx#L58) — it reads balances from
+`useSettlementBalances` but writes household-level `split_ratios`, which are only the
+fallback once `settlement_members` rows exist. Deleting loses the only ratio editor;
+mounting reintroduces a fixed bug. Pending 🔴 #2.
+
+**#14 `/store-comparison` and `/prisdatabase` render without `AppLayout`.** They are focused
+sub-pages with their own back arrow, not destinations needing a month picker.
+
+**#15 The upload CTA appears only on `/` and `/kvitteringer`.** `useReceiptUpload()` is
+available everywhere; the other three routes are views onto data, not places to add it.
+
+### 🔴 New — needs a decision
+
+**Leaving a household, and removing a member, silently do nothing.** Found while building
+the #6 recovery screen. `household_memberships` has RLS enabled with only SELECT and INSERT
+policies — no DELETE policy — so both operations affect zero rows, return no error, and toast
+success. `useLeaveHousehold` also filters its delete on `household_id` alone with no
+`user_id` predicate, so a DELETE policy added without a narrow enough `USING` clause would
+let that statement remove every member of the household. Needs a permissions decision, a
+migration, and a matching `.eq("user_id", …)`. See
+[OVERNIGHT_LOG.md](../OVERNIGHT_LOG.md).

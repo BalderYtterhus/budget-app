@@ -83,7 +83,7 @@ export const InstallPrompt = () => {
             <Download className="w-5 h-5 text-primary" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-sm">Installer Food Buddy</p>
+            <p className="font-medium text-sm">Installer BudgetBandz</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               Få raskere tilgang og offline-støtte
             </p>

@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Sheet,
   SheetContent,
@@ -55,8 +56,36 @@ export function AppLayout({ title, children }: AppLayoutProps) {
   const [navOpen, setNavOpen] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [manualMode, setManualMode] = useState(false);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
 
   const monthLabel = `${MONTHS[selectedMonth - 1]} ${selectedYear}`.toUpperCase();
+
+  // The ⌘K hint was printed next to the input without anything listening for
+  // it. Now it does what it says.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  /**
+   * Hands the term to ReceiptList via the URL rather than a second piece of
+   * search state. ReceiptList already owns a working filter and its own input;
+   * duplicating that here would have given the same query two sources of truth.
+   */
+  const submitSearch = () => {
+    const q = query.trim();
+    if (!q) return;
+    navigate(`/kvitteringer?q=${encodeURIComponent(q)}`);
+    searchRef.current?.blur();
+  };
 
   const openUpload = (manual = false) => {
     setManualMode(manual);
@@ -125,7 +154,12 @@ export function AppLayout({ title, children }: AppLayoutProps) {
               <div className="hidden md:flex items-center gap-2 bg-card border border-border rounded-[10px] px-2.5 py-1.5 text-muted-foreground min-w-[200px]">
                 <Search className="w-3.5 h-3.5 flex-shrink-0" />
                 <input
+                  ref={searchRef}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && submitSearch()}
                   placeholder="Søk i kvitteringer…"
+                  aria-label="Søk i kvitteringer"
                   className="border-none bg-transparent outline-none text-[13px] flex-1 text-foreground placeholder:text-muted-foreground"
                 />
                 <kbd className="text-[10.5px] bg-muted px-1 py-0.5 rounded text-muted-foreground">⌘K</kbd>

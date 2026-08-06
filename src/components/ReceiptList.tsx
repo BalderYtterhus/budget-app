@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,6 +62,12 @@ export function ReceiptList() {
   const deleteReceipt = useDeleteReceipt();
   const updateReceiptPayer = useUpdateReceiptPayer();
   const updateReceipt = useUpdateReceipt();
+  // The header search box navigates to /kvitteringer?q=… rather than holding a
+  // second copy of the query. Seed the existing filter from it; typing in the
+  // box below stays local, so the two never fight over the same value.
+  const [searchParams] = useSearchParams();
+  const urlQuery = searchParams.get("q") ?? "";
+
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptType | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editStoreName, setEditStoreName] = useState("");
@@ -68,7 +75,17 @@ export function ReceiptList() {
   const [editTotal, setEditTotal] = useState("");
   const [editLabel, setEditLabel] = useState("");
   const [editStoreChain, setEditStoreChain] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(urlQuery);
+
+  // Adjusted during render rather than in an effect: an effect here sets state
+  // synchronously on every ?q= change and cascades an extra render pass. React
+  // re-runs this component immediately instead, without committing the first
+  // result. On routes with no ?q= both values stay "" and this never fires.
+  const [lastUrlQuery, setLastUrlQuery] = useState(urlQuery);
+  if (urlQuery !== lastUrlQuery) {
+    setLastUrlQuery(urlQuery);
+    setSearch(urlQuery);
+  }
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   // Find the current receipt from the data (for real-time updates)
@@ -164,7 +181,10 @@ export function ReceiptList() {
             <CardTitle className="text-base sm:text-lg font-display">Kvitteringer</CardTitle>
             <ScrollText className="h-5 w-5 text-muted-foreground" />
           </div>
-          {receipts && receipts.length > 3 && (
+          {/* `|| search` matters: a term arriving from the header search would
+              otherwise filter a short list with no visible input and no way to
+              clear it. */}
+          {((receipts && receipts.length > 3) || search) && (
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input

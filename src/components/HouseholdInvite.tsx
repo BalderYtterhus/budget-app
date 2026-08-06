@@ -22,9 +22,24 @@ interface HouseholdInviteProps {
   inviteToken: string | null;
   inviteEnabled: boolean;
   onUpdate: () => void;
+  /**
+   * Controlled mode. Callers that already have their own trigger — the sidebar
+   * "Inviter medlem" row, the /oppgjor empty state — pass these and set
+   * `hideTrigger`, so the invite flow has one implementation rather than three.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
-export function HouseholdInvite({ inviteToken, inviteEnabled, onUpdate }: HouseholdInviteProps) {
+export function HouseholdInvite({
+  inviteToken,
+  inviteEnabled,
+  onUpdate,
+  open,
+  onOpenChange,
+  hideTrigger,
+}: HouseholdInviteProps) {
   const { household } = useHousehold();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
@@ -118,13 +133,15 @@ export function HouseholdInvite({ inviteToken, inviteEnabled, onUpdate }: Househ
   };
 
   return (
-    <Dialog>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <UserPlus className="h-4 w-4" />
-          Inviter medlemmer
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="sm" className="gap-2">
+            <UserPlus className="h-4 w-4" />
+            Inviter medlemmer
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

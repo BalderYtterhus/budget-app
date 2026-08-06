@@ -21,7 +21,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { ArrowRight, AlertTriangle, CheckCircle, Users, X } from "lucide-react";
+import { ArrowRight, AlertTriangle, CheckCircle, Users, UserPlus, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { InviteMemberDialog } from "@/components/InviteMemberDialog";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useSettlementBalances } from "@/hooks/useSettlementBalances";
 import { useSettlementContext } from "@/contexts/SettlementContext";
@@ -30,8 +32,19 @@ import { formatNOK } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
-export function SettlementOversikt() {
+interface SettlementOversiktProps {
+  /**
+   * On the dashboard a household of one has nothing to settle, so the card
+   * hides itself rather than taking up a slot. /oppgjor is *only* this card,
+   * so hiding leaves a page with a heading and nothing under it — there, pass
+   * this to explain the situation instead.
+   */
+  showEmptyState?: boolean;
+}
+
+export function SettlementOversikt({ showEmptyState }: SettlementOversiktProps = {}) {
   const { members } = useHousehold();
+  const [showInvite, setShowInvite] = useState(false);
   const { activeSettlement } = useSettlementContext();
   const closeSettlement = useCloseSettlement();
   const createSettlement = useCreateSettlement();
@@ -69,7 +82,47 @@ export function SettlementOversikt() {
     return name.slice(0, 2).toUpperCase();
   };
 
-  if (members.length < 2) return null;
+  if (members.length < 2) {
+    if (!showEmptyState) return null;
+
+    return (
+      <>
+        <Card className="shadow-card">
+          <CardHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
+            <CardTitle className="text-base sm:text-lg font-display flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Oppgjør
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+            <div className="flex flex-col items-center text-center gap-3 py-6">
+              <div className="p-3 rounded-full bg-muted">
+                <UserPlus className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-medium text-sm">Du er alene i husholdningen</p>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Et oppgjør fordeler utgifter mellom to eller flere personer. Inviter
+                  noen for å dele utgiftene — kvitteringene og budsjettet fungerer som
+                  vanlig i mellomtiden.
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <Button onClick={() => setShowInvite(true)} className="gap-2">
+                  <UserPlus className="h-4 w-4" />
+                  Inviter medlem
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link to="/kvitteringer">Gå til kvitteringer</Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <InviteMemberDialog open={showInvite} onOpenChange={setShowInvite} />
+      </>
+    );
+  }
 
   return (
     <>

@@ -29,7 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Receipt, ScrollText, Trash2, ChevronRight, Store, User, Users, AlertTriangle, AlertCircle, Ban, Pencil, Check, Tag, Search, X, ZoomIn } from "lucide-react";
-import { useMonthlyReceipts, useDeleteReceipt, useCategories, useUpdateReceiptPayer, useUpdateReceipt } from "@/hooks/useBudgetData";
+import { useMonthlyReceipts, useDeleteReceipt, useCategories, useUpdateReceiptPayer, useUpdateReceipt, useUpdateReceiptSettlement } from "@/hooks/useBudgetData";
 import { useSettlementNames } from "@/hooks/useSettlements";
 import { useSettlementContext } from "@/contexts/SettlementContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
@@ -42,12 +42,16 @@ import { ReceiptItemEditor } from "@/components/ReceiptItemEditor";
 import { ReceiptImage } from "@/components/ReceiptImage";
 import { QueryErrorState } from "@/components/QueryErrorState";
 
+/** Radix Select treats "" as "no value", so the null case needs a real token. */
+const NO_SETTLEMENT = "__none__";
+
 export function ReceiptList() {
   const { data: receipts, isLoading, isError, error, refetch } = useMonthlyReceipts();
   const { data: categories } = useCategories();
   const { members } = useHousehold();
   const { data: settlementNames } = useSettlementNames();
-  const { activeSettlement } = useSettlementContext();
+  const { activeSettlement, settlements } = useSettlementContext();
+  const updateReceiptSettlement = useUpdateReceiptSettlement();
 
   /**
    * The list is no longer settlement-scoped, so a row can belong to another
@@ -427,6 +431,46 @@ export function ReceiptList() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs text-muted-foreground">Oppgjør</Label>
+                  <Select
+                    value={currentReceipt.settlement_id ?? NO_SETTLEMENT}
+                    onValueChange={(v) =>
+                      updateReceiptSettlement.mutate({
+                        receiptId: currentReceipt.id,
+                        settlementId: v === NO_SETTLEMENT ? null : v,
+                      })
+                    }
+                    disabled={updateReceiptSettlement.isPending}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_SETTLEMENT}>Ikke i oppgjør</SelectItem>
+                      {settlements.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                      {/* A receipt can sit in a settlement that has since been
+                          closed. Without this it would have no matching option
+                          and the trigger would render blank. */}
+                      {currentReceipt.settlement_id &&
+                        !settlements.some((s) => s.id === currentReceipt.settlement_id) && (
+                          <SelectItem value={currentReceipt.settlement_id}>
+                            {settlementNames?.[currentReceipt.settlement_id] ?? "Annet oppgjør"}{" "}
+                            (avsluttet)
+                          </SelectItem>
+                        )}
+                    </SelectContent>
+                  </Select>
+                  {settlements.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Ingen aktive oppgjør. Start et fra oppgjørsvelgeren i menyen.
+                    </p>
+                  )}
                 </div>
               </div>
 

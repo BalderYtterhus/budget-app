@@ -34,9 +34,13 @@ regenerated so the diagrams match the code.
 | 📋 | #14, #15 — deliberate, see below | — |
 | 🔴 | **New:** leaving/removing a member silently no-ops | needs you |
 
-**Health:** `npm run build` passes — `tsc -b` reports nothing but a `baseUrl`
-deprecation notice, and vite builds. Lint on every touched file is back to its
-pre-existing baseline: no new errors, and the three that remain
+**Health:** `vite build` succeeds. **`npm run build` exits 1 — but it does on
+`main` too**, so this is not from tonight's work: `tsc -b` fails on
+`error TS5101`, a TypeScript 7 deprecation notice about `baseUrl` in
+`tsconfig.app.json`. One line (`"ignoreDeprecations": "6.0"`, or dropping
+`baseUrl` since `paths` no longer needs it) clears it, but it is a tsconfig
+change outside the 15 issues so I left it for you. Lint on every touched file is
+back to its pre-existing baseline: no new errors, and the three that remain
 (`react-refresh/only-export-components` in AppLayout, two
 `preserve-manual-memoization` in ReceiptList) all predate this session.
 

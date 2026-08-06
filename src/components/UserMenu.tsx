@@ -134,7 +134,8 @@ export function UserMenu() {
   );
 }
 
-function HouseholdSettingsDialog({
+/** Exported so the sidebar's profile row can open it too — see AppSidebar. */
+export function HouseholdSettingsDialog({
   open,
   onOpenChange
 }: {

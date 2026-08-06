@@ -982,7 +982,10 @@ export function useLeaveHousehold() {
     onSuccess: () => {
       queryClient.clear();
       toast({ title: "Du har forlatt husholdningen" });
-      window.location.href = "/auth";
+      // "/" rather than "/auth": the user is still signed in, so /auth only
+      // bounced straight back here. AppLayout now shows the create-or-join
+      // screen for a memberless account.
+      window.location.href = "/";
     },
     onError: () => {
       toast({ title: "Feil ved utmelding", variant: "destructive" });

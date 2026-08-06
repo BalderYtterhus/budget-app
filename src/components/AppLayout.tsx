@@ -16,6 +16,7 @@ import { BudgetSettings } from "@/components/BudgetSettings";
 import { CategoryReviewButton } from "@/components/CategoryReview";
 import { ConsentModal } from "@/components/ConsentModal";
 import { ReceiptUpload } from "@/components/ReceiptUpload";
+import { NoHousehold } from "@/components/NoHousehold";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useMonth } from "@/contexts/MonthContext";
 
@@ -68,6 +69,13 @@ export function AppLayout({ title, children }: AppLayoutProps) {
         <Loader2 className="h-8 w-8 animate-spin text-brand" />
       </div>
     );
+  }
+
+  // Every query below is scoped by household_id, and ReceiptUpload dereferences
+  // it outright. Rendering the shell against a null household produced an app
+  // that looked functional right up until the upload threw.
+  if (!household) {
+    return <NoHousehold />;
   }
 
   return (

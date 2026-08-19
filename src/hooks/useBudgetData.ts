@@ -287,6 +287,11 @@ export function useCurrentBudget() {
         .eq("month", selectedMonth)
         .eq("year", selectedYear)
         .eq("household_id", household.id)
+        // Legacy household budget only. Without this, the personal and
+        // settlement rows added in 20260819100000 also match and maybeSingle()
+        // throws PGRST116. Phase 3 adds the personal-scope read alongside it.
+        .is("user_id", null)
+        .is("settlement_id", null)
         .maybeSingle();
       if (error) throw error;
       return data;
@@ -445,7 +450,10 @@ export function useSaveBudget() {
         .from("budgets")
         .upsert(
           { month, year, total_budget: totalBudget, household_id: household.id },
-          { onConflict: "month,year,household_id" }
+          // Matches budgets_scope_unique. user_id and settlement_id are left
+          // unset, so this stays the legacy household budget — same row as
+          // before. Phase 3 passes a user_id here to target a personal budget.
+          { onConflict: "household_id,month,year,user_id,settlement_id" }
         )
         .select()
         .single();
@@ -758,6 +766,9 @@ export function useCopyBudgetFromPreviousMonth() {
         .eq("month", prevMonth)
         .eq("year", prevYear)
         .eq("household_id", household.id)
+        // Legacy household scope, as in useCurrentBudget above.
+        .is("user_id", null)
+        .is("settlement_id", null)
         .maybeSingle();
 
       if (prevError) throw prevError;
@@ -773,7 +784,7 @@ export function useCopyBudgetFromPreviousMonth() {
             total_budget: prevBudget.total_budget,
             household_id: household.id,
           },
-          { onConflict: "month,year,household_id" }
+          { onConflict: "household_id,month,year,user_id,settlement_id" }
         )
         .select()
         .single();

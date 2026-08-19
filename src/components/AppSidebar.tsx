@@ -1,12 +1,14 @@
+import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { LayoutGrid, Receipt, Users, Tag, TrendingUp, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { InviteMemberDialog } from "@/components/InviteMemberDialog";
+import { HouseholdSettingsDialog } from "@/components/UserMenu";
 import { useHousehold } from "@/contexts/HouseholdContext";
 import { useSettlementBalances } from "@/hooks/useSettlementBalances";
 import { SettlementSwitcher } from "@/components/SettlementSwitcher";
 import { useSettlementContext } from "@/contexts/SettlementContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { supabase } from "@/integrations/supabase/client";
 import { formatNOK } from "@/lib/format";
 
 const navItems = [
@@ -45,6 +47,8 @@ export function AppSidebar({ onNavigate, variant = "fixed" }: AppSidebarProps = 
   const { user } = useAuth();
   const { activeSettlement } = useSettlementContext();
   const { balances, totalSpent } = useSettlementBalances();
+  const [showInvite, setShowInvite] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // The roster below is the household's; the numbers are the active
   // settlement's. A member who is not on the settlement has no balance in it
@@ -111,7 +115,10 @@ export function AppSidebar({ onNavigate, variant = "fixed" }: AppSidebarProps = 
                 </div>
               );
             })}
-            <button className="flex items-center gap-1.5 px-1.5 py-1.5 text-[11.5px] font-medium text-brand hover:text-brand/80 transition-colors mt-0.5">
+            <button
+              onClick={() => setShowInvite(true)}
+              className="flex items-center gap-1.5 px-1.5 py-1.5 text-[11.5px] font-medium text-brand hover:text-brand/80 transition-colors mt-0.5"
+            >
               <Plus className="w-3 h-3" />
               Inviter medlem
             </button>
@@ -149,9 +156,12 @@ export function AppSidebar({ onNavigate, variant = "fixed" }: AppSidebarProps = 
 
       {/* Profile footer */}
       <div className="px-3 pb-4 mt-2">
+        {/* Opens household settings, which is what "Innstillinger" promises.
+            This used to call signOut() directly — the least reversible action
+            in the sidebar behind the label that suggested the least. */}
         <button
           className="w-full flex items-center gap-2.5 px-1.5 py-1.5 rounded-lg hover:bg-accent/50 transition-colors"
-          onClick={() => supabase.auth.signOut()}
+          onClick={() => setShowSettings(true)}
         >
           <div className="w-[30px] h-[30px] rounded-full bg-[hsl(160_45%_45%)] flex items-center justify-center text-white text-[10.5px] font-semibold flex-shrink-0">
             {getInitials(members.find(m => m.user_id === user?.id)?.profile?.display_name ||
@@ -166,6 +176,9 @@ export function AppSidebar({ onNavigate, variant = "fixed" }: AppSidebarProps = 
           </div>
         </button>
       </div>
+
+      <InviteMemberDialog open={showInvite} onOpenChange={setShowInvite} />
+      <HouseholdSettingsDialog open={showSettings} onOpenChange={setShowSettings} />
     </aside>
   );
 }

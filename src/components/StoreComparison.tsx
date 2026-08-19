@@ -37,13 +37,14 @@ export function StoreComparison({ items }: StoreComparisonProps) {
     );
   }
 
+  // This branch used to drop the "Detaljer" link that the populated branch
+  // renders, which made /store-comparison unreachable from the only place that
+  // links to it — exactly when a user would want to go look at why there is no
+  // data. Header is shared with the populated branch so the link survives both.
   if (!comparison || comparison.stores.length === 0) {
     return (
       <Card className="shadow-card">
-        <CardHeader className="flex flex-row items-center gap-2 px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
-          <Store className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-base sm:text-lg font-display">Prissammenligning</CardTitle>
-        </CardHeader>
+        <ComparisonHeader muted />
         <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
           <p className="text-sm text-muted-foreground">
             Ingen prishistorikk tilgjengelig. Legg til kvitteringer med butikknavn for å aktivere prissammenligning.
@@ -57,19 +58,7 @@ export function StoreComparison({ items }: StoreComparisonProps) {
 
   return (
     <Card className="shadow-card">
-      <CardHeader className="flex flex-row items-center justify-between px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
-        <div className="flex items-center gap-2">
-          <Store className="h-5 w-5 text-primary" />
-          <CardTitle className="text-base sm:text-lg font-display">Prissammenligning</CardTitle>
-        </div>
-        <Link to="/store-comparison">
-          <Button variant="ghost" size="sm" className="gap-1 text-xs">
-            <BarChart3 className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Detaljer</span>
-            <ChevronRight className="h-3.5 w-3.5" />
-          </Button>
-        </Link>
-      </CardHeader>
+      <ComparisonHeader />
       <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6 space-y-4">
         {/* Warning if coverage is low */}
         {!hasEnoughData && (
@@ -130,6 +119,24 @@ export function StoreComparison({ items }: StoreComparisonProps) {
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function ComparisonHeader({ muted }: { muted?: boolean } = {}) {
+  return (
+    <CardHeader className="flex flex-row items-center justify-between px-4 sm:px-6 pt-4 sm:pt-6 pb-3">
+      <div className="flex items-center gap-2">
+        <Store className={cn("h-5 w-5", muted ? "text-muted-foreground" : "text-primary")} />
+        <CardTitle className="text-base sm:text-lg font-display">Prissammenligning</CardTitle>
+      </div>
+      <Link to="/store-comparison">
+        <Button variant="ghost" size="sm" className="gap-1 text-xs">
+          <BarChart3 className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Detaljer</span>
+          <ChevronRight className="h-3.5 w-3.5" />
+        </Button>
+      </Link>
+    </CardHeader>
   );
 }
 

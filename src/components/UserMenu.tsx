@@ -19,7 +19,7 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, Users, Home, Settings, Edit2, Save, X, Check, Sun, Moon, Database, UserMinus, DoorOpen } from "lucide-react";
+import { LogOut, Users, Home, Settings, Edit2, Save, X, Check, Sun, Moon, Database, UserMinus, DoorOpen, Smartphone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { HouseholdInvite } from "@/components/HouseholdInvite";
@@ -89,6 +89,14 @@ export function UserMenu() {
               Prisdatabase
             </Link>
           </DropdownMenuItem>
+          {/* The only permanent way to /install. InstallPrompt also links there,
+              but it suppresses itself for 7 days once dismissed. */}
+          <DropdownMenuItem asChild>
+            <Link to="/install">
+              <Smartphone className="mr-2 h-4 w-4" />
+              Installer appen
+            </Link>
+          </DropdownMenuItem>
 
           {members.length > 0 && (
             <>
@@ -134,7 +142,8 @@ export function UserMenu() {
   );
 }
 
-function HouseholdSettingsDialog({
+/** Exported so the sidebar's profile row can open it too — see AppSidebar. */
+export function HouseholdSettingsDialog({
   open,
   onOpenChange
 }: {

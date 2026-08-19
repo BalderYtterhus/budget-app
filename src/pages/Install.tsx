@@ -66,7 +66,7 @@ const Install = () => {
             </div>
             <CardTitle className="text-2xl">Allerede installert!</CardTitle>
             <CardDescription>
-              Budget App er allerede installert på enheten din.
+              BudgetBandz er allerede installert på enheten din.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -92,7 +92,7 @@ const Install = () => {
             </Button>
           </Link>
           <div>
-            <h1 className="font-semibold">Installer Budget App</h1>
+            <h1 className="font-semibold">Installer BudgetBandz</h1>
             <p className="text-sm text-muted-foreground">Legg til på hjemskjermen</p>
           </div>
         </div>
@@ -107,7 +107,7 @@ const Install = () => {
             </div>
             <h2 className="text-xl font-semibold mb-2">Få full app-opplevelse</h2>
             <p className="text-muted-foreground mb-4">
-              Installer Budget App på hjemskjermen for raskere tilgang, offline-støtte og en bedre brukeropplevelse.
+              Installer BudgetBandz på hjemskjermen for raskere tilgang, offline-støtte og en bedre brukeropplevelse.
             </p>
             
             {deferredPrompt && (
@@ -188,7 +188,7 @@ const Install = () => {
                   <div>
                     <p className="font-medium">Bekreft med «Legg til»</p>
                     <p className="text-sm text-muted-foreground">
-                      Budget App-ikonet vil nå vises på hjemskjermen din.
+                      BudgetBandz-ikonet vil nå vises på hjemskjermen din.
                     </p>
                   </div>
                 </div>
@@ -210,7 +210,7 @@ const Install = () => {
                     <p className="font-medium mb-3">Rask installasjon tilgjengelig!</p>
                     <Button onClick={handleInstallClick} className="gap-2">
                       <Download className="w-4 h-4" />
-                      Installer Budget App
+                      Installer BudgetBandz
                     </Button>
                   </div>
                 ) : (
@@ -263,7 +263,7 @@ const Install = () => {
                       <div>
                         <p className="font-medium">Bekreft installasjonen</p>
                         <p className="text-sm text-muted-foreground">
-                          Budget App vil nå være tilgjengelig som en app på telefonen din.
+                          BudgetBandz vil nå være tilgjengelig som en app på telefonen din.
                         </p>
                       </div>
                     </div>

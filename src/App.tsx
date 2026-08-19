@@ -55,12 +55,18 @@ const App = () => (
               {/* Each sidebar route now renders its own page. They previously all
                   pointed at <Index />, so the nav changed the URL and the active
                   highlight while the content stayed identical. */}
+              {/* Every authenticated route gets the same providers. /prisdatabase
+                  used to be the exception — it queries only public_price_data, so
+                  it needed neither — but that left one route where any component
+                  calling useHousehold() would throw instead of render. */}
               {([
                 ["/", Index],
                 ["/kvitteringer", Receipts],
                 ["/oppgjor", Oppgjor],
                 ["/kategorier", Categories],
                 ["/rapporter", Reports],
+                ["/store-comparison", StoreComparison],
+                ["/prisdatabase", PrisDatabase],
               ] as const).map(([path, Page]) => (
                 <Route
                   key={path}
@@ -76,26 +82,6 @@ const App = () => (
                   }
                 />
               ))}
-              <Route
-                path="/store-comparison"
-                element={
-                  <RequireAuth>
-                    <HouseholdProvider>
-                      <SettlementProvider>
-                        <StoreComparison />
-                      </SettlementProvider>
-                    </HouseholdProvider>
-                  </RequireAuth>
-                }
-              />
-              <Route
-                path="/prisdatabase"
-                element={
-                  <RequireAuth>
-                    <PrisDatabase />
-                  </RequireAuth>
-                }
-              />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </MonthProvider>

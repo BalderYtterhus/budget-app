@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Receipt, ScrollText, Trash2, ChevronRight, Store, User, Users, AlertTriangle, AlertCircle, Ban, Pencil, Check, Tag, Search, X, ZoomIn } from "lucide-react";
-import { useMonthlyReceipts, useDeleteReceipt, useCategories, useUpdateReceiptPayer, useUpdateReceipt } from "@/hooks/useBudgetData";
+import { useMonthlyReceipts, useDeleteReceipt, useCategories, useUpdateReceiptPayer, useUpdateReceipt, useUpdateReceiptSettlement } from "@/hooks/useBudgetData";
 import { useSettlementNames } from "@/hooks/useSettlements";
 import { useSettlementContext } from "@/contexts/SettlementContext";
 import { useHousehold } from "@/contexts/HouseholdContext";
@@ -41,12 +42,16 @@ import { ReceiptItemEditor } from "@/components/ReceiptItemEditor";
 import { ReceiptImage } from "@/components/ReceiptImage";
 import { QueryErrorState } from "@/components/QueryErrorState";
 
+/** Radix Select treats "" as "no value", so the null case needs a real token. */
+const NO_SETTLEMENT = "__none__";
+
 export function ReceiptList() {
   const { data: receipts, isLoading, isError, error, refetch } = useMonthlyReceipts();
   const { data: categories } = useCategories();
   const { members } = useHousehold();
   const { data: settlementNames } = useSettlementNames();
-  const { activeSettlement } = useSettlementContext();
+  const { activeSettlement, settlements } = useSettlementContext();
+  const updateReceiptSettlement = useUpdateReceiptSettlement();
 
   /**
    * The list is no longer settlement-scoped, so a row can belong to another
@@ -61,6 +66,12 @@ export function ReceiptList() {
   const deleteReceipt = useDeleteReceipt();
   const updateReceiptPayer = useUpdateReceiptPayer();
   const updateReceipt = useUpdateReceipt();
+  // The header search box navigates to /kvitteringer?q=… rather than holding a
+  // second copy of the query. Seed the existing filter from it; typing in the
+  // box below stays local, so the two never fight over the same value.
+  const [searchParams] = useSearchParams();
+  const urlQuery = searchParams.get("q") ?? "";
+
   const [selectedReceipt, setSelectedReceipt] = useState<ReceiptType | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [editStoreName, setEditStoreName] = useState("");
@@ -68,7 +79,17 @@ export function ReceiptList() {
   const [editTotal, setEditTotal] = useState("");
   const [editLabel, setEditLabel] = useState("");
   const [editStoreChain, setEditStoreChain] = useState("");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(urlQuery);
+
+  // Adjusted during render rather than in an effect: an effect here sets state
+  // synchronously on every ?q= change and cascades an extra render pass. React
+  // re-runs this component immediately instead, without committing the first
+  // result. On routes with no ?q= both values stay "" and this never fires.
+  const [lastUrlQuery, setLastUrlQuery] = useState(urlQuery);
+  if (urlQuery !== lastUrlQuery) {
+    setLastUrlQuery(urlQuery);
+    setSearch(urlQuery);
+  }
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   // Find the current receipt from the data (for real-time updates)
@@ -164,7 +185,10 @@ export function ReceiptList() {
             <CardTitle className="text-base sm:text-lg font-display">Kvitteringer</CardTitle>
             <ScrollText className="h-5 w-5 text-muted-foreground" />
           </div>
-          {receipts && receipts.length > 3 && (
+          {/* `|| search` matters: a term arriving from the header search would
+              otherwise filter a short list with no visible input and no way to
+              clear it. */}
+          {((receipts && receipts.length > 3) || search) && (
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -407,6 +431,46 @@ export function ReceiptList() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs text-muted-foreground">Oppgjør</Label>
+                  <Select
+                    value={currentReceipt.settlement_id ?? NO_SETTLEMENT}
+                    onValueChange={(v) =>
+                      updateReceiptSettlement.mutate({
+                        receiptId: currentReceipt.id,
+                        settlementId: v === NO_SETTLEMENT ? null : v,
+                      })
+                    }
+                    disabled={updateReceiptSettlement.isPending}
+                  >
+                    <SelectTrigger className="h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_SETTLEMENT}>Ikke i oppgjør</SelectItem>
+                      {settlements.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name}
+                        </SelectItem>
+                      ))}
+                      {/* A receipt can sit in a settlement that has since been
+                          closed. Without this it would have no matching option
+                          and the trigger would render blank. */}
+                      {currentReceipt.settlement_id &&
+                        !settlements.some((s) => s.id === currentReceipt.settlement_id) && (
+                          <SelectItem value={currentReceipt.settlement_id}>
+                            {settlementNames?.[currentReceipt.settlement_id] ?? "Annet oppgjør"}{" "}
+                            (avsluttet)
+                          </SelectItem>
+                        )}
+                    </SelectContent>
+                  </Select>
+                  {settlements.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Ingen aktive oppgjør. Start et fra oppgjørsvelgeren i menyen.
+                    </p>
+                  )}
                 </div>
               </div>
 

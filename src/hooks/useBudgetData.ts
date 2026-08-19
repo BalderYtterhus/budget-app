@@ -899,6 +899,45 @@ export function useUpdateReceiptPayer() {
   });
 }
 
+/**
+ * Moves a receipt into a settlement, or out of every settlement (null).
+ *
+ * Receipts saved while no settlement was active got `settlement_id = null` and
+ * stayed that way: ReceiptList badged them "Ikke i oppgjør" and offered no way
+ * to act on it, so they counted towards the month but could never be split.
+ *
+ * Invalidates settlements alongside receipts — useSettlementBalances derives
+ * every balance from the receipt rows, so moving one changes who owes whom.
+ */
+export function useUpdateReceiptSettlement() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation({
+    mutationFn: async ({
+      receiptId,
+      settlementId,
+    }: {
+      receiptId: string;
+      settlementId: string | null;
+    }) => {
+      const { error } = await supabase
+        .from("receipts")
+        .update({ settlement_id: settlementId })
+        .eq("id", receiptId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["settlements"] });
+    },
+    onError: () => {
+      toast({ title: "Kunne ikke flytte kvitteringen", variant: "destructive" });
+    },
+  });
+}
+
 export function useUpdateReceiptItem() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -982,7 +1021,10 @@ export function useLeaveHousehold() {
     onSuccess: () => {
       queryClient.clear();
       toast({ title: "Du har forlatt husholdningen" });
-      window.location.href = "/auth";
+      // "/" rather than "/auth": the user is still signed in, so /auth only
+      // bounced straight back here. AppLayout now shows the create-or-join
+      // screen for a memberless account.
+      window.location.href = "/";
     },
     onError: () => {
       toast({ title: "Feil ved utmelding", variant: "destructive" });

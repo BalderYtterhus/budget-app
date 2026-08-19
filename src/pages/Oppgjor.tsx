@@ -4,6 +4,10 @@ import { AppLayout } from "@/components/AppLayout";
 /**
  * Read-only settlement view.
  *
+ * `showEmptyState` matters here and nowhere else: this page is only the card, so
+ * the members < 2 branch that hides it on the dashboard would leave the route
+ * blank. See SettlementOversikt.
+ *
  * TODO(balder): Settlement.tsx (326 lines, currently imported nowhere) holds
  * the split-ratio editor and the close-settlement flow. Mounting it here would
  * be the obvious next step, but it changes how money is divided between
@@ -20,7 +24,7 @@ import { AppLayout } from "@/components/AppLayout";
  */
 const Oppgjor = () => (
   <AppLayout title="Oppgjør">
-    <SettlementOversikt />
+    <SettlementOversikt showEmptyState />
   </AppLayout>
 );
 

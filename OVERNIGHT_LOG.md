@@ -1,3 +1,220 @@
+# Overnight work log
+
+Newest session first. Older sessions are kept verbatim below.
+
+---
+
+# 2026-08-06 · Dead ends and broken controls
+
+Branch: `overnight-fixes` (reset onto `main` at `6b8e17f` — its two old commits
+were already in `main` via the #14 squash). Fixes the 15 issues catalogued in
+[`docs/user-flows.md`](docs/user-flows.md), which mapped the app's real wiring
+before any of this was touched.
+
+**One commit per issue**, each citing its number. `docs/user-flows.md` has been
+regenerated so the diagrams match the code.
+
+## Status at a glance
+
+| | Issue | Commit |
+|---|---|---|
+| ✅ | #4 `/oppgjor` blank for a household of one | `cc43aaf` |
+| ✅ | #6 null household → create-or-join recovery | `57a71c1` |
+| ✅ | #7 404 outside the shell, in English | `0c5e0d9` |
+| ✅ | #3 fake header search + dead ⌘K hint | `f924c16` |
+| ✅ | #1 "+ Inviter medlem" with no handler | `498f8a1` |
+| ✅ | #2 "Innstillinger" that signed you out | `498f8a1` |
+| ✅ | #5 no way to assign a settlement-less receipt | `1d0b542` |
+| ✅ | #9 `/store-comparison` link missing from the empty branch | `ebc83b4` |
+| ✅ | #12 four product names in user-facing copy | `8b417c8` |
+| ✅ | #10 `/install` reachable only via a self-suppressing prompt | `91daebb` |
+| ✅ | #11 routes with no entry point | `91daebb` |
+| ✅ | #13 `/prisdatabase` missing its providers | `91daebb` |
+| 📋 | #8 `Settlement.tsx` — kept, see below | — |
+| 📋 | #14, #15 — deliberate, see below | — |
+| 🔴 | **New:** leaving/removing a member silently no-ops | needs you |
+
+**Health:** `vite build` succeeds. **`npm run build` exits 1 — but it does on
+`main` too**, so this is not from tonight's work: `tsc -b` fails on
+`error TS5101`, a TypeScript 7 deprecation notice about `baseUrl` in
+`tsconfig.app.json`. One line (`"ignoreDeprecations": "6.0"`, or dropping
+`baseUrl` since `paths` no longer needs it) clears it, but it is a tsconfig
+change outside the 15 issues so I left it for you. Lint on every touched file is
+back to its pre-existing baseline: no new errors, and the three that remain
+(`react-refresh/only-export-components` in AppLayout, two
+`preserve-manual-memoization` in ReceiptList) all predate this session.
+
+One correction to `CLAUDE.md` while I am here: **the "16 TypeScript errors from
+never-installed shadcn peer deps" are not reported by this project's own
+toolchain.** Neither `tsc -b` nor `tsc --noEmit -p tsconfig.app.json` surfaces
+them. I checked it was not a stale `tsconfig.app.tsbuildinfo` by deleting the
+cache and adding a file importing a package that does not exist — still no
+error, so this config does not emit TS2307 at all. The peer deps really are
+absent (`cmdk`, `vaul`, `react-day-picker` and the rest are in neither
+`package.json` nor `node_modules`) and `src/components/ui/` really does import
+them, so the install-or-delete question is still open — but it is not currently
+costing you a red build, which is how the last log framed it.
+
+## What changed
+
+### P0 — dead ends
+
+**#4 `/oppgjor` blank for a household of one.** `SettlementOversikt` returns
+`null` under `members.length < 2`, which is right on the dashboard and wrong on
+`/oppgjor`, where that card *is* the page. Added an opt-in `showEmptyState` used
+only by the route: explains that a settlement needs two people, opens the invite
+dialog, and links onward to kvitteringer.
+
+`HouseholdInvite` gained controlled `open`/`onOpenChange` + `hideTrigger`, and
+`InviteMemberDialog` wraps it with the household read from context — so any
+caller that wants the invite flow only has to own a boolean. That is what made
+#1 a two-line fix rather than a second invite implementation.
+
+**#6 null household.** `HouseholdProvider` sets `household` to null whenever the
+membership lookup comes back empty. Nothing handled it: the shell rendered
+against the literal string "Husholdning" and the first thing to actually
+dereference it was `ReceiptUpload`'s `household!.id`, which threw *after* the
+user had picked a photo. `AppLayout` now gates on it and renders `NoHousehold`,
+offering the two things the backend already supports:
+
+- **create** — direct inserts into `households` + `household_memberships`. Both
+  are already permitted by RLS (`households` INSERT allows any authenticated
+  user; memberships INSERT allows `auth.uid() = user_id`), so **no migration**.
+  The id is generated client-side, because the SELECT policy on `households` is
+  membership-based and the membership does not exist yet — reading the row back
+  from the insert returns nothing.
+- **join** — pulls the uuid out of a pasted invite link and hands off to `/join`.
+
+`useLeaveHousehold` now returns to `/` instead of `/auth`; the user is still
+signed in, so `/auth` only bounced straight back.
+
+**#7 404.** Rendered outside every provider, in English, with a full-reload
+`<a href="/">` as its only exit. Now renders inside `AppLayout` when signed in
+(sidebar, month picker and upload sheet all stay put) and standalone when not.
+
+### P1 — broken controls
+
+**#1** "+ Inviter medlem" had no `onClick` at all. Now opens the existing invite
+dialog. No new invite mechanism was built — `HouseholdInvite` already generates,
+expires and regenerates tokens; it was just buried in UserMenu →
+Husholdningsinnstillinger.
+
+**#2** The sidebar profile row is labelled "Innstillinger" and called
+`supabase.auth.signOut()` with no confirmation — the least reversible control in
+the sidebar behind the label promising the least. It now opens household
+settings, matching the label. Signing out stays in `UserMenu`, where it is
+labelled "Logg ut".
+
+**#3** The header search box had no `value`, no `onChange`, and a ⌘K hint with
+nothing listening. Wired rather than removed: it submits to
+`/kvitteringer?q=…`, and ⌘K/Ctrl+K focuses it. The term travels through the URL
+instead of new state, because `ReceiptList` already owns a working filter and
+its own input — a second copy would have given one query two sources of truth.
+`ReceiptList` reads `?q=` by adjusting state during render rather than in an
+effect (an effect there sets state synchronously on every change and cascades a
+render pass), and now keeps its own input visible whenever a term is active — it
+was gated on `receipts.length > 3`, so a term from the header could otherwise
+filter a short list with no visible box and no way to clear it.
+
+### P2 — structural gaps
+
+**#5** Added `useUpdateReceiptSettlement` and a picker in the receipt detail
+dialog, so a receipt with `settlement_id = null` can be moved into a settlement
+(or back out). It invalidates `settlements` as well as `receipts`, since
+`useSettlementBalances` derives every balance from the receipt rows. Two cases
+the picker covers: "Ikke i oppgjør" needs a real sentinel because Radix Select
+reads `""` as no-value, and a receipt sitting in a since-closed settlement gets
+that settlement as an explicit option, or the trigger renders blank.
+
+**#9** `StoreComparison`'s "no price history" branch rendered its own header
+without the "Detaljer" link — the only entry point to `/store-comparison`
+anywhere — so the route went unreachable exactly when you would want to open it.
+Both branches now share one header component.
+
+### P3 — cleanup
+
+**#12** The app called itself four things: "Food Buddy" (InstallPrompt), "Budget
+App" (all of Install.tsx), "Matbudsjett" (login), "BudgetBandz" (manifest,
+sidebar, page title). The install flow was the worst of it — the prompt and the
+page it links to disagreed about which app was being installed. Standardised on
+**BudgetBandz**, which is what `manifest.json` and `index.html` already said.
+Descriptive copy ("Spor matforbruket ditt sammen") untouched.
+
+**#10 `/install` — confirmed working, suppression is intentional.** The 7-day
+`localStorage` suppression in `InstallPrompt` is deliberate and unchanged.
+Nothing about the page is broken. The problem was that it was the *only* route
+in, so `UserMenu` now carries a permanent "Installer appen" link.
+
+**#13** `/prisdatabase` was the one authenticated route wrapped in `RequireAuth`
+alone. Harmless today, but it meant one route where any component calling
+`useHousehold()` throws instead of renders. All seven authenticated routes now
+go through the same map in `App.tsx`.
+
+## 📋 Deliberate, no change
+
+**#8 `Settlement.tsx` — kept, not deleted.** It is *not* superseded.
+`SettlementSwitcher` and `SettlementOversikt` between them cover switch, create,
+close and reopen; what they do not cover is the **split-ratio editor**, which
+exists only here. Settlements currently get equal ratios at creation and there
+is no UI to change them.
+
+It is also not safe to mount as-is, and already says so in-file
+([Settlement.tsx:58](src/components/Settlement.tsx#L58)): it reads balances from
+`useSettlementBalances` but *writes* household-level `split_ratios`, which are
+only the fallback once a settlement has `settlement_members` rows. Mounted
+unchanged, saving would appear to do nothing. Deleting it would throw away the
+only ratio-editor UI in the repo; mounting it would reintroduce a bug #13 already
+fixed. So it stays, annotated, pending 🔴 #2 from the previous session.
+
+**#14 `/store-comparison` and `/prisdatabase` render without `AppLayout`.**
+Intentional — they are focused sub-pages with their own back arrow, not
+destinations that need a month picker and an upload sheet.
+
+**#15 The upload CTA appears only on `/` and `/kvitteringer`.** Also
+intentional. `useReceiptUpload()` is available everywhere, but `/rapporter`,
+`/kategorier` and `/oppgjor` are views onto data, not places to add it.
+
+## 🔴 New — needs your decision
+
+### Leaving a household, and removing a member, silently do nothing
+
+Found while building the #6 recovery screen, **not** one of the 15.
+
+`household_memberships` has RLS enabled with **only SELECT and INSERT policies**
+— there is no DELETE policy. Postgres therefore deletes zero rows and returns no
+error, so both of these report success and change nothing:
+
+- `useLeaveHousehold` — toasts "Du har forlatt husholdningen", redirects, and
+  the user is still a member.
+- `useRemoveMember` — same, from the owner's side.
+
+`useLeaveHousehold` has a second problem independent of RLS: its delete filters
+on `household_id` only, with no `user_id` predicate. If a DELETE policy is added
+without a `USING` clause narrow enough to constrain it, that statement removes
+**every** member of the household, not just the caller.
+
+I have not written the policy. Who may remove whom is a permissions decision
+(owner-only? owner cannot remove themselves? last member?), and it needs a
+migration plus a matching `.eq("user_id", …)` on the leave path. Tell me the
+rule and I will write both.
+
+## Verification
+
+Typecheck, lint and production build were run after every commit. In the browser
+I could verify the **signed-out** surface directly: the 404 renders in Norwegian
+with both exits, `/install` shows the new name, `/prisdatabase` correctly
+redirects to `/auth`, and the login screen reads "BudgetBandz". Fresh-tab console
+is clean.
+
+**Not verified at runtime:** everything behind auth — `NoHousehold`, the
+`/oppgjor` empty state, the settlement picker, the header search round-trip and
+the two sidebar buttons. I have no credentials for this Supabase project, and a
+dev server on 5175 belonging to another session meant I ran mine on 5176 (added
+as `budget-app-verify` in `.claude/launch.json`). These are the states worth your
+eyes first.
+
+---
+
 # Overnight work log — 2026-08-02 → 08-03
 
 Branch: `overnight-fixes`. **All ✅ items complete and merged.** 🔴 #1 settled

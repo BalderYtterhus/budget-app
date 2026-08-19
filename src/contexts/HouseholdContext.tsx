@@ -46,7 +46,15 @@ export function HouseholdProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setLoading(true);
+    // Only block on a load that has nothing to show yet. `loading` gates
+    // AppLayout's full-screen spinner, which replaces the entire page tree —
+    // so flipping it during a *refetch* unmounts whatever the user is looking
+    // at, including any open dialog. That is what closed the invite dialog on
+    // every expiry / regenerate / toggle click: each calls refetchHousehold.
+    //
+    // Note useState(true) already covers the first load, so this line was only
+    // ever doing work on refetches.
+    if (!household) setLoading(true);
     try {
       // Get user's household membership
       const { data: membership, error: membershipError } = await supabase

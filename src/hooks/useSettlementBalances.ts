@@ -4,6 +4,12 @@ import { useHousehold } from "@/contexts/HouseholdContext";
 import { useSettlementContext } from "@/contexts/SettlementContext";
 import { useSettlements } from "@/hooks/useSettlements";
 import { useMonthlyReceipts, useSplitRatios } from "@/hooks/useBudgetData";
+import { receiptTotal, resolveMemberIds, settlementRatios } from "@/lib/share";
+
+// Re-exported so existing importers (Settlement.tsx) keep working. The
+// definition now lives in src/lib/share.ts so the personal dashboard and the
+// settlement pages share one copy — see Phase 2 of docs/product-plan.md.
+export { receiptTotal };
 
 export interface MemberBalance {
   userId: string;
@@ -33,20 +39,6 @@ export interface SettlementBalances {
   /** True when the split falls back to household members because the
    *  settlement has no settlement_members rows (pre-dates the members write). */
   usingHouseholdFallback: boolean;
-}
-
-/**
- * What a receipt contributes to spending: the sum of its included items, or the
- * receipt total when nothing was parsed. Excluded items (included_in_totals =
- * false) are deliberately dropped — that flag exists so non-shared purchases on
- * a shared receipt stay out of the split.
- */
-export function receiptTotal(receipt: Receipt): number {
-  const items = receipt.items ?? [];
-  if (items.length === 0) return Number(receipt.total_amount);
-  return items
-    .filter((item) => item.included_in_totals !== false)
-    .reduce((sum, item) => sum + Number(item.price), 0);
 }
 
 /**
@@ -88,11 +80,11 @@ export function useSettlementBalances(settlementId?: string | null): SettlementB
 
     const settlementMembers =
       settlements?.find((s) => s.id === targetId)?.settlement_members ?? [];
-    const usingHouseholdFallback = settlementMembers.length === 0;
 
-    const memberIds = usingHouseholdFallback
-      ? members.map((m) => m.user_id)
-      : settlementMembers.map((m) => m.user_id);
+    const { memberIds, usingHouseholdFallback } = resolveMemberIds(
+      settlementMembers,
+      members.map((m) => m.user_id),
+    );
 
     if (memberIds.length === 0) return { ...empty, receipts: scoped, usingHouseholdFallback };
 
@@ -109,30 +101,21 @@ export function useSettlementBalances(settlementId?: string | null): SettlementB
 
     const totalSpent = Object.values(paidByUser).reduce((sum, amount) => sum + amount, 0);
 
-    const rawRatio = (userId: string): number => {
-      if (!usingHouseholdFallback) {
-        const member = settlementMembers.find((m) => m.user_id === userId);
-        if (member) return Number(member.ratio);
-      }
-      const ratio = splitRatios?.find((r) => r.user_id === userId);
-      if (ratio) return Number(ratio.ratio);
-      return 100 / memberIds.length;
-    };
-
-    // Normalise: ratios come from two tables that can each be partially filled,
-    // so they are not guaranteed to sum to 100. Without this, shouldPay across
-    // members would not add up to totalSpent and the transactions below would
-    // not close out.
-    const rawRatios = memberIds.map(rawRatio);
-    const ratioSum = rawRatios.reduce((sum, r) => sum + r, 0);
-    const ratios = memberIds.map((_, idx) =>
-      ratioSum > 0 ? (rawRatios[idx] / ratioSum) * 100 : 100 / memberIds.length
+    // Ratio resolution and normalisation now live in src/lib/share.ts, so the
+    // personal dashboard reads the same percentages these balances are built
+    // from. Behaviour is unchanged — this is the same code, moved.
+    const ratios = settlementRatios(
+      memberIds,
+      settlementMembers,
+      splitRatios,
+      usingHouseholdFallback,
     );
 
-    const balances: MemberBalance[] = memberIds.map((userId, idx) => {
+    const balances: MemberBalance[] = memberIds.map((userId) => {
       const paid = paidByUser[userId] || 0;
-      const shouldPay = totalSpent * (ratios[idx] / 100);
-      return { userId, paid, ratio: ratios[idx], shouldPay, balance: paid - shouldPay };
+      const ratio = ratios.get(userId) ?? 0;
+      const shouldPay = totalSpent * (ratio / 100);
+      return { userId, paid, ratio, shouldPay, balance: paid - shouldPay };
     });
 
     // Two-pointer minimum-transaction settle: biggest debtor pays biggest

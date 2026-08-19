@@ -99,14 +99,47 @@ Two things blocked or muddied everything after them. Both are cleared.
   `main` @ `2dfd776`. It was 13 commits, not 12. Content diff against `main`
   verified empty after the squash — nothing dropped.
 
-### Phase 1 — schema
-- Migration: `budgets` gets nullable `user_id` and `settlement_id`. Exactly one
-  set — `user_id` → personal, `settlement_id` → settlement, neither → legacy
-  household budget.
-- `category_budgets` hangs off `budget_id` and needs no change, so category
-  targets work at both levels for free.
-- **Then** `supabase gen types typescript --linked > src/integrations/supabase/types.ts`.
-  A missing column types as `never` and fails confusingly at the insert site.
+### Phase 1 — schema ✅ **WRITTEN 2026-08-19, needs `supabase db push`**
+Migration `20260819100000_budget_scopes.sql`.
+
+- `budgets` gets nullable `user_id` and `settlement_id`, with a CHECK that they
+  are never both set. `user_id` → personal, `settlement_id` → settlement,
+  neither → legacy household budget.
+- `category_budgets` hangs off `budget_id` and needed no change, so category
+  targets work at every scope for free — as expected.
+
+Two things the plan did not anticipate:
+
+- **The original `UNIQUE(month, year)` was still on the table.** It came from
+  the pre-household `CREATE TABLE` and was never dropped when `household_id`
+  arrived in `20260202074513`. It permits exactly **one budget row per
+  month/year across the entire database**, so the second household ever to set
+  a budget for a given month would have hit a constraint violation. Invisible
+  so far only because there is one household. Dropped here — it is also a hard
+  blocker, since scoped budgets mean several rows per (month, year) by design.
+- **Uniqueness had to become `UNIQUE NULLS NOT DISTINCT`** over
+  `(household_id, month, year, user_id, settlement_id)`. Partial unique indexes
+  express the same rule, but PostgREST cannot target a partial index from
+  `on_conflict`, which would break the upsert in `useSaveBudget`. Requires
+  Postgres 15+.
+
+**The migration and the code must land together.** Dropping
+`budgets_month_year_household_unique` invalidates the old `onConflict` string,
+so all four `budgets` call sites moved with it — two upserts to the new
+constraint, two reads pinned to the legacy scope with
+`.is("user_id", null).is("settlement_id", null)`. Behaviour is identical today;
+without the scope filter those reads would match personal rows too and
+`maybeSingle()` would throw PGRST116 as soon as Phase 3 writes one.
+
+Confirmed against the live database that the app's budget read returns
+`42703 column budgets.user_id does not exist` until the migration is pushed.
+
+**Still to run, and it is not optional:**
+```
+supabase db push
+supabase gen types typescript --linked > src/integrations/supabase/types.ts
+```
+A missing column types as `never` and fails confusingly at the insert site.
 
 ### Phase 2 — one share function
 Extract the share maths that already exists inside `useSettlementBalances` so

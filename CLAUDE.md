@@ -147,7 +147,7 @@ All authenticated pages render inside `AppLayout` (sidebar + mobile drawer + hea
 - A receipt with no settlement is visible and counted, but there is **no UI to assign it to one**. The badge in `ReceiptList` is display-only.
 - `SettlementSwitcher` is written but **mounted nowhere** — the active settlement can only change via `localStorage.activeSettlementId` or by falling back to the newest active settlement
 - `/oppgjor` is display-only; `Settlement.tsx` (split-ratio editor, close flow) is written but mounted nowhere
-- 16 TypeScript errors, all from `src/components/ui/` files importing never-installed peer deps (`cmdk`, `vaul`, `react-day-picker`, `react-hook-form`, `embla-carousel-react`, `input-otp`, `react-resizable-panels`). No app code imports them. **Install or delete — pending decision.**
+- ~~16 TypeScript errors from unused `src/components/ui/` files~~ **Resolved 2026-08-19: deleted.** `npm run build` now exits 0. Eight files went (`calendar`, `carousel`, `chart`, `command`, `drawer`, `form`, `input-otp`, `resizable`); nothing imported them, in app code or elsewhere in `ui/`. Re-add any with `npx shadcn@latest add <name>` — `components.json` is configured, and the CLI installs the peer dep too. Note `chart.tsx` was *not* a missing-peer-dep case: it was recharts type drift, so installing packages would never have fixed it. Charts are unaffected — `SpendingTrend` and `PrisDatabase` import `recharts` directly.
 - Old receipt images have broken URLs (bucket went private after they were uploaded as public)
 - `store_chain` not backfilled on old receipts (only new ones get it via Edge Function)
 - No push notifications for over-budget alerts

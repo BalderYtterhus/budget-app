@@ -84,17 +84,20 @@ is the whole point of it.
 Each phase is a commit or small PR, so the numbers can be watched changing one
 step at a time.
 
-### Phase 0 — clear the decks first
-Two things block or muddy everything after them:
+### Phase 0 — clear the decks first ✅ **DONE 2026-08-19**
+Two things blocked or muddied everything after them. Both are cleared.
 
-- **`npm run build` is red, on every branch.** `tsc -b` fails on `TS5101`:
-  `baseUrl` is deprecated and errors under this TypeScript. `vite build` itself
-  is fine. One-line fix (`"ignoreDeprecations": "6.0"` in `tsconfig.app.json`,
-  or drop `baseUrl` for `paths`-only resolution). Do this before anything else —
-  otherwise no phase below can be verified by a build.
-- **`overnight-fixes` has 12 unpushed commits and no PR.** The whole 2026-08-06
-  dead-ends session lives there, not on `main`. Land it before starting Phase 1,
-  or Phase 1 branches off a stale base.
+- ~~**`npm run build` is red, on every branch.**~~ Fixed by dropping `baseUrl`
+  from `tsconfig.app.json` rather than silencing it with `ignoreDeprecations` —
+  TypeScript is on 6.0.3 and `baseUrl` stops functioning entirely in 7.0, so the
+  silencing option only buys time. `paths` resolves relative to the tsconfig's
+  own directory without it, and Vite carries its own `@` alias.
+  Removing `TS5101` exposed the 16 shadcn errors it had been hiding, so those
+  were resolved in the same pass — the 8 unused `ui/` files are deleted. See §6.1.
+  **`npm run build` now exits 0.**
+- ~~**`overnight-fixes` has 12 unpushed commits and no PR.**~~ Landed as PR #16,
+  `main` @ `2dfd776`. It was 13 commits, not 12. Content diff against `main`
+  verified empty after the squash — nothing dropped.
 
 ### Phase 1 — schema
 - Migration: `budgets` gets nullable `user_id` and `settlement_id`. Exactly one
@@ -208,9 +211,12 @@ is cheap, and it is what would make any future embedding upgrade measurable.
 
 Carried from `OVERNIGHT_LOG.md`, unchanged:
 
-1. **shadcn peer deps** — install 7 packages or delete 16 unused `ui/` files.
-   Nothing imports them. Not urgent: they do not fail the build (see §7).
-   Recommendation: delete.
+1. ~~**shadcn peer deps**~~ **DECIDED 2026-08-19: deleted.** Balder chose delete.
+   Note the original framing here was wrong in two ways: it was 8 files, not 16
+   (16 was the *error* count), and installing the 7 packages would not have given
+   a green build — `chart.tsx` accounted for 8 of the 16 errors and was recharts
+   type drift, not a missing peer dep. Re-add any component with
+   `npx shadcn@latest add <name>`.
 2. **`household_memberships` has no DELETE policy.** RLS is on with only SELECT
    and INSERT, so `useLeaveHousehold` and `useRemoveMember` delete zero rows,
    return no error, and toast success. `useLeaveHousehold` also filters on
@@ -229,25 +235,23 @@ Carried from `OVERNIGHT_LOG.md`, unchanged:
 
 So this can be picked up cold.
 
-- `main` @ `6b8e17f` — PRs #12–#15 merged.
-- **`overnight-fixes` is 12 commits ahead of `main` and unpushed, with no PR.**
-  The entire 2026-08-06 dead-ends session (issues #1–#13 from
-  `docs/user-flows.md`) is only on that branch. Land it first — see Phase 0.
-- **`npm run build` exits 1 on every branch** — `tsc -b` → `TS5101`, the
-  `baseUrl` deprecation. Not caused by any recent change.
+- `main` @ `2dfd776` — PRs #12–#16 merged.
+- ~~**`overnight-fixes` is 12 commits ahead and unpushed**~~ Landed as PR #16.
+  The 2026-08-06 dead-ends session (issues #1–#13 from `docs/user-flows.md`) is
+  on `main`.
+- **`npm run build` exits 0.** Fixed 2026-08-19 — see Phase 0.
 - **Assign-to-settlement exists** — `useUpdateReceiptSettlement` plus a picker in
   the receipt detail dialog. A receipt can move in or out of a settlement.
-  (On `overnight-fixes`, not yet on `main`.)
+  (Now on `main`.)
 - **`SettlementSwitcher` is mounted** in the sidebar; switch, create, close and
   reopen all work, with a confirmation on close.
 - **`Settlement.tsx` is still mounted nowhere** — Phase 4 is its home.
 - The month view is **household-scoped, not settlement-scoped** — every receipt
   is visible and counted regardless of settlement. Phase 3 changes what that
   total *means*, not which receipts are visible.
-- **The 16 shadcn peer-dep errors are real but not what breaks the build.**
-  `tsc --noEmit -p tsconfig.app.json --ignoreDeprecations 6.0` reports 16, all in
-  `src/components/ui/`, none in app code. `npm run build` never reaches them — it
-  dies earlier on `TS5101`. So they are a tidiness question, not a red build.
+- ~~**The 16 shadcn peer-dep errors**~~ Gone — the 8 files are deleted. Once
+  `TS5101` stopped masking them they *were* a red build, not just tidiness, so
+  they had to be resolved in the same pass rather than deferred.
 - **`QueryErrorState` is still unverified at runtime.** An attempt on 2026-08-06
   was inconclusive: with a real injected fault the query never reached
   `status: "error"` — it sat at `fetchStatus: "paused"` and then

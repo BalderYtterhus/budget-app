@@ -16,7 +16,9 @@
     // module declarations. Without these, client.ts and main.tsx error even
     // though both work at runtime. Not a new dependency — vite is installed.
     "types": ["vite/client"],
-    "baseUrl": ".",
+    // No baseUrl: it is deprecated in TS 6 and stops functioning in 7.0.
+    // "paths" resolves relative to this file's directory without it, and Vite
+    // carries its own "@" alias, so runtime resolution is unaffected.
     "paths": {
       "@/*": ["./src/*"]
     }

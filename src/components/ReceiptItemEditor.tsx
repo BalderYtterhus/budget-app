@@ -28,7 +28,6 @@ export function ReceiptItemEditor({ item, categories }: ReceiptItemEditorProps) 
   const [price, setPrice] = useState(Number(item.price));
   const [rawText, setRawText] = useState(item.raw_text);
   const [included, setIncluded] = useState(item.included_in_totals !== false);
-  const [isEditing, setIsEditing] = useState(false);
 
   // Reset local state when item changes
   useEffect(() => {
@@ -39,7 +38,6 @@ export function ReceiptItemEditor({ item, categories }: ReceiptItemEditorProps) 
   }, [item.id, item.quantity, item.price, item.raw_text, item.included_in_totals]);
 
   const handlePriceBlur = async () => {
-    setIsEditing(false);
     if (price !== Number(item.price)) {
       await updateItem.mutateAsync({
         itemId: item.id,
@@ -49,7 +47,6 @@ export function ReceiptItemEditor({ item, categories }: ReceiptItemEditorProps) 
   };
 
   const handleQuantityBlur = async () => {
-    setIsEditing(false);
     if (quantity !== (item.quantity || 1)) {
       await updateItem.mutateAsync({
         itemId: item.id,
@@ -59,7 +56,6 @@ export function ReceiptItemEditor({ item, categories }: ReceiptItemEditorProps) 
   };
 
   const handleTextBlur = async () => {
-    setIsEditing(false);
     if (rawText !== item.raw_text) {
       await updateItem.mutateAsync({
         itemId: item.id,
@@ -101,8 +97,7 @@ export function ReceiptItemEditor({ item, categories }: ReceiptItemEditorProps) 
             <Input
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
-              onFocus={() => setIsEditing(true)}
-              onBlur={handleTextBlur}
+                onBlur={handleTextBlur}
               className={cn(
                 "h-8 text-sm font-medium",
                 isExcluded && "line-through text-muted-foreground"
@@ -151,7 +146,6 @@ export function ReceiptItemEditor({ item, categories }: ReceiptItemEditorProps) 
             step="1"
             value={quantity}
             onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-            onFocus={() => setIsEditing(true)}
             onBlur={handleQuantityBlur}
             className="h-7 w-16 text-sm text-right"
             disabled={updateItem.isPending}
@@ -166,7 +160,6 @@ export function ReceiptItemEditor({ item, categories }: ReceiptItemEditorProps) 
             step="0.01"
             value={price}
             onChange={(e) => setPrice(parseFloat(e.target.value) || 0)}
-            onFocus={() => setIsEditing(true)}
             onBlur={handlePriceBlur}
             className="h-7 w-20 text-sm text-right"
             disabled={updateItem.isPending}

@@ -45,8 +45,10 @@ export type Database = {
           household_id: string | null
           id: string
           month: number
+          settlement_id: string | null
           total_budget: number
           updated_at: string
+          user_id: string | null
           year: number
         }
         Insert: {
@@ -54,8 +56,10 @@ export type Database = {
           household_id?: string | null
           id?: string
           month: number
+          settlement_id?: string | null
           total_budget?: number
           updated_at?: string
+          user_id?: string | null
           year: number
         }
         Update: {
@@ -63,8 +67,10 @@ export type Database = {
           household_id?: string | null
           id?: string
           month?: number
+          settlement_id?: string | null
           total_budget?: number
           updated_at?: string
+          user_id?: string | null
           year?: number
         }
         Relationships: [
@@ -73,6 +79,13 @@ export type Database = {
             columns: ["household_id"]
             isOneToOne: false
             referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budgets_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "settlements"
             referencedColumns: ["id"]
           },
         ]

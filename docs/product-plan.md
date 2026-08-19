@@ -141,13 +141,35 @@ supabase gen types typescript --linked > src/integrations/supabase/types.ts
 ```
 A missing column types as `never` and fails confusingly at the insert site.
 
-### Phase 2 — one share function
-Extract the share maths that already exists inside `useSettlementBalances` so
-the personal page and the settlement pages share one definition. This is an
-extraction, not new logic.
+### Phase 2 — one share function ✅ **DONE 2026-08-19**
+`src/lib/share.ts` (pure) + `src/hooks/useShare.ts` (data).
 
-Rule set is the table in §3. Must handle: settlements you are not a member of,
-closed settlements, and receipts with `settlement_id = null`.
+`receiptTotal`, member resolution and ratio normalisation moved out of
+`useSettlementBalances`, which now *calls* them — so there is one definition
+rather than a second copy. `receiptTotal` is re-exported from its old home so
+`Settlement.tsx` keeps working. `useMyReceiptShare()` is the entry point Phase 3
+consumes.
+
+**One thing the plan called an extraction turned out to need a new query.**
+`useSettlements()` filters `status = 'active'`, so closed settlements are
+invisible to it. Feeding that into share math would make every closed
+settlement's receipts silently worth 0 to their own members — closing a
+settlement records that it was paid up, it does not retract the spending. Hence
+`useAllSettlementMembers()`, which queries every settlement regardless of
+status.
+
+Also decided: an *unknown* settlement id yields 0, not the full total. Failing
+closed beats silently charging someone for a settlement that could not be
+loaded.
+
+**Verified against the §3 table** with a throwaway `tsx` script — all five rows
+plus ratio normalisation (30/10 → 75/25), the even-split fallback, and both
+`receiptTotal` branches. 15/15 passed.
+
+⚠️ **The project has no test runner**, so that script lives outside the repo and
+does not run in CI. This module is the highest-value place in the codebase to
+have real tests: it is pure, the rules are subtle, and Phases 3 and 4 both build
+on it. Adding vitest is one dev dependency — worth doing before Phase 3.
 
 ### Phase 3 — personal dashboard (`/`)
 - `useSpendingSummary` weights each receipt by the caller's share.

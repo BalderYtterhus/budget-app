@@ -106,7 +106,6 @@ export function ShoppingList() {
     return total;
   }, 0);
 
-  const itemsWithEstimates = items.filter((item) => priceEstimates?.has(item.id));
   const itemsWithoutEstimates = items.filter((item) => !priceEstimates?.has(item.id));
 
   if (isLoading) {

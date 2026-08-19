@@ -1007,15 +1007,23 @@ export function useRecalculateReceiptTotal() {
 export function useLeaveHousehold() {
   const queryClient = useQueryClient();
   const { household } = useHousehold();
+  const { user } = useAuth();
   const { toast } = useToast();
 
   return useMutation({
     mutationFn: async () => {
       if (!household) throw new Error("No household");
+      if (!user) throw new Error("Not signed in");
+      // The user_id predicate is load-bearing, not defensive. Without it this
+      // deletes every row for the household, and the DELETE policy added in
+      // 20260819000000 would happily allow it for an owner — is_household_owner
+      // is true for all of their household's rows. Non-owners were protected
+      // only by the policy; owners were not protected at all.
       const { error } = await supabase
         .from("household_memberships")
         .delete()
-        .eq("household_id", household.id);
+        .eq("household_id", household.id)
+        .eq("user_id", user.id);
       if (error) throw error;
     },
     onSuccess: () => {

@@ -217,17 +217,33 @@ Carried from `OVERNIGHT_LOG.md`, unchanged:
    a green build — `chart.tsx` accounted for 8 of the 16 errors and was recharts
    type drift, not a missing peer dep. Re-add any component with
    `npx shadcn@latest add <name>`.
-2. **`household_memberships` has no DELETE policy.** RLS is on with only SELECT
-   and INSERT, so `useLeaveHousehold` and `useRemoveMember` delete zero rows,
-   return no error, and toast success. `useLeaveHousehold` also filters on
-   `household_id` alone with no `user_id` predicate — adding a DELETE policy
-   without a narrow `USING` clause would let it remove *every* member. Needs a
-   permissions rule from Balder, then a migration plus the missing `.eq()`.
-3. **`ReceiptUpload.tsx:95`** — should *Avbryt* return to the idle screen, or is
-   fire-once-on-prop-flip intended?
-4. **`ReceiptItemEditor.tsx:31` / `ShoppingList.tsx:109`** — two unused locals
-   that look like half-removed render branches. What were they meant to gate?
-   A memory question, not a code one.
+2. ~~**`household_memberships` has no DELETE policy.**~~ **DECIDED 2026-08-19:
+   owners may remove other members; anyone may remove themselves.** Shipped in
+   migration `20260819000000` via a new `is_household_owner()` SECURITY DEFINER
+   helper (a plain subquery on the same table would recurse through its own
+   policy). `useLeaveHousehold` gained the missing `.eq("user_id", …)` — without
+   it the new policy would have let an *owner* delete every member in one call,
+   since `is_household_owner` is true for every row of their household.
+   The UI already encoded this rule: `UserMenu` gates remove on
+   `isOwner && member.user_id !== user.id` and leave on `!isOwner`.
+   Still open: an owner has no way to leave, so a one-owner household cannot be
+   exited. Not a regression — flagging it as a gap.
+3. ~~**`ReceiptUpload.tsx:95`**~~ **DECIDED 2026-08-19: yes, *Avbryt* returns to
+   the idle screen.** That is already the behaviour; fire-once-on-prop-flip is
+   correct and intentional. No code change — the effect now carries a comment
+   saying so, because adding `state` to its deps is the tempting "fix" that
+   would make *Avbryt* unexitable.
+4. ~~**`ReceiptItemEditor.tsx:31` / `ShoppingList.tsx:109`**~~ **RESOLVED
+   2026-08-19: both deleted.** Neither gated anything reachable.
+   `isEditing` was written by six call sites and read by none — item editing
+   runs entirely through `onChange` → local state → `onBlur` → mutation, so
+   removing it changed no behaviour. `itemsWithEstimates` was never read;
+   its sibling `itemsWithoutEstimates` is, and stays.
+   **Worth knowing:** `isEditing` looks like an abandoned guard on the reset
+   `useEffect`. Without one, a refetch that returns changed server values while
+   someone is mid-edit will clobber the field. Narrow (needs a concurrent edit
+   by another member) but real, and it touches exactly the OCR-correction path.
+   Not fixed here — deleting was the instruction, and the guard is new work.
 
 ---
 

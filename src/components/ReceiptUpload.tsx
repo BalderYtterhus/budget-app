@@ -86,7 +86,13 @@ export function ReceiptUpload({ onSuccess, startManual }: { onSuccess?: () => vo
     }
   }, [user, paidByUser]);
 
-  // Jump directly to manual entry when startManual is set
+  // Jump directly to manual entry when startManual is set.
+  //
+  // Deliberately fire-once on the prop flip, not on `state`. Avbryt calls
+  // reset(), which returns to "idle" — the image-upload screen — and this
+  // effect must NOT bounce the user straight back into manual review, or
+  // Avbryt would be unexitable. Confirmed as intended (Balder, 2026-08-19).
+  // Adding `state` to the deps is the tempting "fix" that breaks it.
   useEffect(() => {
     if (startManual && state === "idle") {
       setState("review");
